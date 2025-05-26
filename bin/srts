@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""
+Process SRT files:
+1. Detect and convert file encodings to UTF-8
+2. Fix Spanish punctuation capitalization and replace special quotes
+
+Handles Western (Windows 1252), UTF-8, and UTF-8 with BOM encodings.
+No external packages required. Supports wildcards like *.srt to process multiple files.
+Enhanced to handle paths with spaces and special characters.
+
+Usage:
+    ./combined_srt_processor.py file.srt
+    ./combined_srt_processor.py "*.srt"
+    ./combined_srt_processor.py file1.srt file2.srt
+    ./combined_srt_processor.py "path with spaces/file.srt"
+    ./combined_srt_processor.py "path with spaces/*.srt"
+
+Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+"""
+
+import sys
+import os
+import glob
+import re
+from pathlib import Path
+
+# ==================== ENCODING DETECTION AND CONVERSION ====================
+
+def detect_encoding(file_path):
+    """
+    Detect the encoding of a file without external packages.
+    Uses a simple heuristic approach to detect common encodings.
+    """
+    # Read the first few bytes to check for BOM
+    with open(file_path, 'rb') as f:
+        raw_data = f.read(4096)
+        
+        # Check for UTF-8 BOM
+        if raw_data.startswith(b'\xef\xbb\xbf'):
+            return 'utf-8-sig'
+        
+        # Try to decode as UTF-8
+        try:
+            raw_data.decode('utf-8')
+            return 'utf-8'
+        except UnicodeDecodeError:
+            pass
+        
+        # If it's not UTF-8, try Windows 1252
+        try:
+            raw_data.decode('cp1252')
+            return 'cp1252'  # Windows 1252
+        except UnicodeDecodeError:
+            pass
+        
+        # Try Latin-1 as a fallback (it can decode any byte sequence)
+        return 'latin-1'
+
+def test_encodings(file_path, encodings=None):
+    """Test a file against several encodings and return the most likely one"""
+    if encodings is None:
+        encodings = ['utf-8', 'utf-8-sig', 'cp1252', 'latin-1', 'iso-8859-1']
+    
+    with open(file_path, 'rb') as f:
+        raw_data = f.read()
+    
+    for enc in encodings:
+        try:
+            raw_data.decode(enc)
+            return enc
+        except UnicodeDecodeError:
+            continue
+    
+    # If all encodings fail, return latin-1 as a fallback
+    return 'latin-1'
+
+def convert_to_utf8(file_path, source_encoding):
+    """Convert a file from source_encoding to UTF-8"""
+    # Read the content with the detected encoding
+    try:
+        with open(file_path, 'r', encoding=source_encoding, errors='replace') as f:
+            content = f.read()
+        
+        # Write the content with UTF-8 encoding
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"Successfully converted {file_path} from {source_encoding} to UTF-8")
+        return True
+    except Exception as e:
+        print(f"Error during conversion: {str(e)}")
+        return False
+
+# ==================== SPANISH PUNCTUATION AND QUOTE FIXES ====================
+
+def capitalize_after_spanish_punctuation(text):
+    """
+    Find all instances of lowercase letters after Spanish opening punctuation (¿¡)
+    and replace them with uppercase letters.
+    """
+    # Pattern to find lowercase letters after Spanish opening punctuation
+    pattern = r'([¿¡])([a-zñáéíóúü])'
+    
+    # Replace with the same punctuation followed by the uppercase letter
+    return re.sub(pattern, lambda m: m.group(1) + m.group(2).upper(), text)
+
+def replace_quotes(text):
+    """
+    Replace Spanish and other quotation marks («»"") with standard double quotes (").
+    """
+    # Define the characters to be replaced
+    characters_to_replace = ['«', '»', '"', '"']
+    
+    # Replace each character with a standard double quote
+    for char in characters_to_replace:
+        text = text.replace(char, '"')
+    
+    return text
+
+def apply_spanish_fixes(file_path):
+    """Apply Spanish punctuation and quote fixes to the file."""
+    try:
+        # Read the file content
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Process the content - first capitalize letters after Spanish punctuation
+        updated_content = capitalize_after_spanish_punctuation(content)
+        
+        # Then replace all special quotes with standard double quotes
+        updated_content = replace_quotes(updated_content)
+        
+        # If no changes were made, inform and return
+        if content == updated_content:
+            print(f"No Spanish fixes needed in '{file_path}'")
+            return True
+        
+        # Write the updated content back to the file
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(updated_content)
+        
+        print(f"Successfully applied Spanish fixes to '{file_path}'")
+        return True
+    
+    except Exception as e:
+        print(f"Error applying Spanish fixes to '{file_path}': {str(e)}")
+        return False
+
+# ==================== FILE PROCESSING ORCHESTRATION ====================
+
+def process_file(file_path):
+    """Process a single file through both encoding conversion and Spanish fixes"""
+    try:
+        # Convert to Path object to handle special characters in paths
+        path_obj = Path(file_path)
+        
+        if not path_obj.is_file():
+            print(f"Error: File '{file_path}' not found")
+            return False
+        
+        if not path_obj.suffix.lower() == '.srt':
+            print(f"Warning: '{file_path}' does not have an .srt extension")
+        
+        print(f"\n{'='*60}")
+        print(f"Processing: {file_path}")
+        print(f"{'='*60}")
+        
+        # STEP 1: Handle encoding detection and conversion
+        print("Step 1: Checking and converting encoding...")
+        
+        # Detect the encoding using multiple methods for better accuracy
+        encoding1 = detect_encoding(file_path)
+        encoding2 = test_encodings(file_path)
+        
+        # Use the more specific encoding if they differ
+        encoding = encoding1 if encoding1 != 'latin-1' else encoding2
+        print(f"Detected encoding: {encoding}")
+        
+        # Convert to UTF-8 if needed
+        encoding_success = True
+        if encoding and encoding.lower() in ('utf-8', 'utf8'):
+            print(f"File '{file_path}' is already in UTF-8 encoding. No conversion needed.")
+        else:
+            encoding_success = convert_to_utf8(file_path, encoding)
+        
+        if not encoding_success:
+            print(f"Encoding conversion failed for '{file_path}'. Skipping Spanish fixes.")
+            return False
+        
+        # STEP 2: Apply Spanish punctuation and quote fixes
+        print("\nStep 2: Applying Spanish punctuation and quote fixes...")
+        spanish_success = apply_spanish_fixes(file_path)
+        
+        if encoding_success and spanish_success:
+            print(f"\n✓ Successfully processed '{file_path}' (encoding + Spanish fixes)")
+            return True
+        else:
+            print(f"\n✗ Partial success processing '{file_path}'")
+            return False
+            
+    except Exception as e:
+        print(f"Error processing file '{file_path}': {str(e)}")
+        return False
+
+def expand_wildcards(args):
+    """Expand wildcard patterns in arguments, handling paths with spaces and special characters"""
+    expanded_args = []
+    for arg in args:
+        try:
+            # Use Path object to handle the path correctly
+            path_obj = Path(arg)
+            
+            # Check if the path has a wildcard
+            if '*' in arg:
+                # Split into directory and pattern
+                if os.path.dirname(arg):
+                    base_dir = os.path.dirname(arg)
+                    pattern = os.path.basename(arg)
+                else:
+                    base_dir = '.'
+                    pattern = arg
+                
+                # Make sure base_dir exists
+                if not os.path.isdir(base_dir):
+                    print(f"Warning: Directory '{base_dir}' does not exist")
+                    continue
+                
+                # Use glob with the proper directory and pattern
+                matches = glob.glob(os.path.join(base_dir, pattern))
+                
+                if matches:
+                    expanded_args.extend(matches)
+                else:
+                    print(f"Warning: No files found matching pattern '{arg}'")
+            else:
+                expanded_args.append(arg)
+        except Exception as e:
+            print(f"Error handling path '{arg}': {str(e)}")
+    return expanded_args
+
+def main():
+    print("Combined SRT Processor")
+    print("Processes files in two steps:")
+    print("1. Encoding detection and conversion to UTF-8")
+    print("2. Spanish punctuation capitalization and quote standardization")
+    print()
+    
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} file.srt")
+        print(f"       {sys.argv[0]} \"*.srt\"")
+        print(f"       {sys.argv[0]} file1.srt file2.srt ...")
+        print(f"       {sys.argv[0]} \"path with spaces/file.srt\"")
+        print(f"       {sys.argv[0]} \"path with spaces/*.srt\"")
+        sys.exit(1)
+    
+    # Expand wildcards in arguments
+    files = expand_wildcards(sys.argv[1:])
+    
+    if not files:
+        print("No files to process")
+        sys.exit(1)
+    
+    # Process each file
+    success_count = 0
+    total_files = len(files)
+    
+    for file_path in files:
+        if process_file(file_path):
+            success_count += 1
+    
+    # Print final summary
+    print(f"\n{'='*60}")
+    print(f"FINAL SUMMARY")
+    print(f"{'='*60}")
+    print(f"Successfully processed: {success_count} of {total_files} files")
+    if success_count < total_files:
+        print(f"Failed to process: {total_files - success_count} files")
+    print(f"{'='*60}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+#
+# mediainfo script to load standard template
+# Usage: minfo2 file1 file2
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+if [ -z "$1" ]; then
+	echo
+	echo  ERROR!
+	echo  No input file specified.
+	echo
+else
+	mediainfo "--Inform=file://${HOME}/.local/bin/minfo_template.txt" "$@"
+fi
+

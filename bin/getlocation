@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+#
+# Get the lat, lon location from an image file using exigtool
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+# Default separator is comma
+separator=","
+
+# Check if first argument is --sep=tab
+if [[ "$1" == "--sep=tab" ]]; then
+    separator=$'\t'
+    shift  # Remove the separator argument from the list
+fi
+
+# Check if exiftool is available
+if ! command -v exiftool &> /dev/null; then
+    echo "Error: exiftool is not installed or not in PATH" >&2
+    exit 1
+fi
+
+# Check if any files were provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 [--sep=tab] <file1> [file2] ..."
+    echo "Examples:"
+    echo "  $0 *.jpg                    # Comma-separated output"
+    echo "  $0 --sep=tab *.jpg          # Tab-separated output"
+    exit 1
+fi
+
+# Process all files at once with exiftool
+# -n forces numeric output (decimal degrees)
+# -T uses tab separation, -S uses short tag names
+exiftool -T -S -n -filename -GPSLatitude -GPSLongitude "$@" 2>/dev/null | while IFS=$'\t' read -r filename lat lon; do
+    # Only output if both lat and lon are present and not empty
+    if [[ -n "$lat" && -n "$lon" && "$lat" != "-" && "$lon" != "-" ]]; then
+        # Format coordinates to 6 decimal places
+        lat=$(printf "%.6f" "$lat")
+        lon=$(printf "%.6f" "$lon")
+        echo -e "${filename}\t${lat}${separator}${lon}"
+    fi
+done

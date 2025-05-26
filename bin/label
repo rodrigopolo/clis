@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+#
+# Set a color label to a file
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+# 0: no color
+# 1: red
+# 2: orange
+# 3: yellow
+# 4: blue
+# 5: purple
+# 6: green
+# 7: gray
+
+get_label_number() {
+    case $1 in
+        "no") echo 0 ;;
+        "red") echo 2 ;;
+        "orange") echo 1 ;;
+        "yellow") echo 3 ;;
+        "blue") echo 4 ;;
+        "purple") echo 5 ;;
+        "green") echo 6 ;;
+        "gray") echo 7 ;;
+        *) 
+            echo "Invalid color. Use: no, red, orange, yellow, green, blue, purple, or gray" >&2
+            exit 1 ;;
+    esac
+}
+
+label_num=$(get_label_number "$1")
+shift
+
+osascript - "$@" <<END > /dev/null 2>&1
+on run arguments
+tell application "Finder"
+repeat with f in arguments
+set f to (posix file (contents of f) as alias)
+set label index of f to ${label_num}
+end repeat
+end tell
+end
+END

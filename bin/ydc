@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+#
+# Download with cookies
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+# Check if a stream URL is provided
+if [ -z "$1" ]; then
+	echo "Usage: $0 <url>"
+	exit 1
+fi
+
+# Modifying the internal field separator
+IFS=$'\t\n'
+
+if [ -z "$1" ]; then
+	echo
+	echo  ERROR!
+	echo  No input file specified.
+	echo
+else
+	yt-dlp \
+	--cookies-from-browser opera \
+	"$@"
+fi

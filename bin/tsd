@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+#
+# Twitter/X Space Downloader Bash Script
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+# Check if a stream URL is provided
+if [ -z "$1" ]; then
+	echo "Usage: $0 <stream_url>"
+	exit 1
+fi
+
+# Modifying the internal field separator
+IFS=$'\t\n'
+
+SPACEURL="$1"
+
+STREAM=$(yt-dlp --cookies-from-browser chrome -g $SPACEURL)
+FILE_NAME=$(yt-dlp --cookies-from-browser chrome --get-filename -o "%(upload_date)s - %(uploader_id)s.%(title)s.%(id)s.%(ext)s" $SPACEURL)
+
+# Get the stream path
+STREAMPATH=$(echo "$STREAM" | grep -Eo "(^.*[\/])")
+
+# Download the stream
+if ! wget "$STREAM" -O stream.m3u8; then
+	echo "Failed to download the stream."
+	exit 1
+fi
+
+# Prefix the URLs for the chunks
+cat stream.m3u8 | sed -E "s|(^[^.#]+.aac$)|$STREAMPATH\1|g" > modified.m3u8
+
+# Download the chunks
+aria2c -x 10 --console-log-level warn -i modified.m3u8
+
+# Join the chunks
+ffmpeg -i stream.m3u8 -vn -acodec copy -movflags +faststart "$FILE_NAME"
+
+# Clean-up temporary files
+eval "$(cat stream.m3u8| grep -Eo "(^[^.#]+.aac$)" | sed 's/^/rm /')"
+rm stream.m3u8 modified.m3u8

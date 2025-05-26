@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+#
+# Only show dirs from lines comming from the pipe
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+
+# Check if input is coming from a pipe
+if [ -p /dev/stdin ]; then
+    sed 's/\/[^/]*$//' | sort | uniq
+else
+    echo "No input received. Please pipe in some data."
+    exit 1
+fi

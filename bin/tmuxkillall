@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+#
+# Kills all tmux sessions
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+for session in $(tmux list-sessions -F "#{session_name}"); do
+    tmux kill-session -t "$session"
+done
+

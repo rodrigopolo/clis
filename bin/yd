@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+#
+# Download video not bigger than 720p
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+if [ -z "$1" ]; then
+	echo
+	echo  ERROR!
+	echo  No input file specified.
+	echo
+else
+	youtube-dl \
+	-f 'bestvideo[height<=720]+bestaudio/best[height<=720]' \
+	"$@"
+fi
+

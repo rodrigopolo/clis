@@ -1,0 +1,10 @@
+File_Begin;
+File_Middle;
+File_End;\r\n
+General;Name...............: %FileName%.%FileExtension%\r\nSize...............: %FileSize/String% (%FileSize% bytes)\r\nDuration...........: %Duration/String3% (%Duration%ms)\r\n
+Video;Frames.............: %FrameCount%\r\nFramerate..........: %FrameRate% fps\r\nResolution.........: %Width%x%Height%\r\nAspect Ratio.......: %DisplayAspectRatio/String%\r\nLevels/Range.......: %colour_range%\r\nChroma subsampling.: %ChromaSubsampling%\r\nColor space........: %ColorSpace%\r\nPrimaries..........: %colour_primaries%\r\nMatrix Coefficients: %matrix_coefficients_Original%%matrix_coefficients%\r\nCodec..............: %InternetMediaType% %Format% %Format_Profile%\r\nBitrate............: %BitRate/String% (%BitRate% b/s) \r\nBit depth..........: %BitDepth%\r\n
+Audio;Audio..............: %Channel(s)% chnls %Format% %BitRate/String% %BitRate_Mode% %SamplingRate%Hz %Language/String%\r\n
+Text; $if(%Language%,%Language/String%,Unknown)
+Text_Begin;Subs...............:
+Text_Middle;,
+Text_End;.\r\n
