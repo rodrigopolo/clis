@@ -108,6 +108,12 @@ And to produce the same results as with `tocubemap.sh`:
 ```sh
 kubi -s 6848 -f Right Left Up Down Front Back Panorama.tif Panorama
 ```
+
+Or just run the `kubi.sh` script
+```sh
+./kubi.sh Panorama.tif
+```
+
 [More about `kubi`](https://github.com/indus/kubi)
 
 ## Dependencies

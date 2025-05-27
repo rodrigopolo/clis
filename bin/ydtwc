@@ -13,7 +13,7 @@ fi
 
 for url in "$@"; do
     # Use regex to capture username and ID
-    if [[ $url =~ ^https://x\.com/([^/]+)/status/([0-9]+)$ ]]; then
+    if [[ $url =~ ^https://(x\.com|twitter\.com)/([^/]+)/status/([0-9]+)$ ]]; then
         username="${BASH_REMATCH[1]}"
         id="${BASH_REMATCH[2]}"
         youtube-dl --cookies-from-browser opera "$url" -o "$username-$id-%(autonumber)s.mp4"
