@@ -6,6 +6,7 @@
 * [Set the geolcation with `setlocation`](#geolocation).
 * [Convert to `jpg` with `tojpg.sh`](#convert-to-jpg).
 * [Convert to `jpg` considering Facebook's max size with `tofacebookjpg.sh`](#convert-to-maximum-allowed-dimensions-for-facebook).
+* [Publish on the web with Pannellum](#publish).
 * [Dependencies](#dependencies)
 
 A collection of scripts to handle 360° panoramas in batch with ExifTool,
@@ -82,6 +83,13 @@ setlocation 14.596657575332861, -90.52320360681493 Panorama.tif
 ## Convert to maximum allowed dimensions for Facebook
 ```sh
 ./tofacebookjpg.sh Panorama.tif
+```
+
+## Publish
+To create the HTML and a multi-resolution cubemap for Pannellum, a lightweight,
+free, and open source panorama viewer for the web:
+```sh
+./topannellum.sh Panorama.tif
 ```
 
 ### Alternative to `tocubemap.sh`
