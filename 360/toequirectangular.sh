@@ -396,6 +396,17 @@ validate_and_detect_files() {
     return 0
 }
 
+
+# Check if the first argument matches --size=WIDTHxHEIGHT
+if [[ "$1" =~ ^--size=[0-9]+x[0-9]+$ ]]; then
+    # Extract width and height using parameter expansion
+    size_param=${1#--size=}           # Remove --size= prefix
+    direct_width=${size_param%x*}     # Extract width (before 'x')
+    direct_height=${size_param#*x}    # Extract height (after 'x')
+    shift                            # Remove the first argument
+fi
+
+
 # Main script starts here
 log_info "Starting cubemap to equirectangular conversion..."
 
@@ -491,6 +502,12 @@ height=$(echo "scale=0; $width / 2" | bc -l)
 if [[ -z "$height" ]]; then
     log_error "Failed to calculate output height"
     exit 1
+fi
+
+# Check if direct_width and direct_height are valid numbers
+if [[ -n "$direct_width" && -n "$direct_height" && "$direct_width" =~ ^[0-9]+$ && "$direct_height" =~ ^[0-9]+$ ]]; then
+    width=$direct_width
+    height=$direct_height
 fi
 
 log_info "Output dimensions: ${width}x${height}"
