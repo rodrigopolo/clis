@@ -1,11 +1,12 @@
 # 360° Panorama Scripts
 
-* Convert `tif` to cubemap using `tocubemap.sh`.
-* Convert from cubemap to equirectangular with `toequirectangular.sh`.
-* Set the geolcation with `setlocation`.
-* Add the 360° panorama metadata with `add360metadata.sh`.
-* Convert to `jpg` with `tojpg.sh`.
-* Convert to `jpg` considering Facebook's max size with `tofacebookjpg.sh`.
+* [Convert `tif` to cubemap using `tocubemap.sh`](#tocubemapsh).
+* [Convert from cubemap to equirectangular with `toequirectangular.sh`](#toequirectangularsh).
+* [Add the 360° panorama metadata with `add360metadata.sh`](#add360metadatash).
+* [Set the geolcation with `setlocation`](#geolocation).
+* [Convert to `jpg` with `tojpg.sh`](#convert-to-jpg).
+* [Convert to `jpg` considering Facebook's max size with `tofacebookjpg.sh`](#convert-to-maximum-allowed-dimensions-for-facebook).
+* [Dependencies](#dependencies)
 
 A collection of scripts to handle 360° panoramas in batch with ExifTool,
 ImageMagick and Hugin's `nona`, and `verdandi` CLIs.Check dependencies at the

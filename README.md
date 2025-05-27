@@ -2,5 +2,6 @@
 
 Multiple command line utilities and scripts for the daily use.
 
-* Local Bin
-* 360
+* [Local Bin](./tree/main/bin)
+* [360](./tree/main/360)
+
