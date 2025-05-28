@@ -151,26 +151,34 @@ round_to_closest_divisor() {
 
 # Process a single image file
 process_image() {
-    local input_file="$1"
-    local original_dir="$PWD"
+    #local input_file="$1"
+    #local output="${f%.*}_p.mp4"
+    #local original_dir="$PWD"
+
+    local input_path="$1"
+    local input_full_path=$(realpath "$input_path")
+
+    local input_base=$(basename "$input_full_path")
+    local input_ext="${input_base##*.}"
+    local input_name="${input_base%*.$input_ext}"
     
-    log_info "Processing: $input_file"
+    log_info "Processing: $input_full_path"
     
     # Check if file exists and is readable
-    if [[ ! -f "$input_file" ]]; then
-        log_error "File does not exist: $input_file"
+    if [[ ! -f "$input_full_path" ]]; then
+        log_error "File does not exist: $input_full_path"
         return 1
     fi
     
-    if [[ ! -r "$input_file" ]]; then
-        log_error "File is not readable: $input_file"
+    if [[ ! -r "$input_full_path" ]]; then
+        log_error "File is not readable: $input_full_path"
         return 1
     fi
     
     # Change to file directory with error handling
     local file_dir
-    file_dir=$(dirname "$input_file") || {
-        log_error "Failed to get directory for: $input_file"
+    file_dir=$(dirname "$input_full_path") || {
+        log_error "Failed to get directory for: $input_full_path"
         return 1
     }
     
@@ -180,28 +188,28 @@ process_image() {
     fi
     
     # Ensure we return to original directory on exit
-    trap "cd '$original_dir'" RETURN
+    #trap "cd '$original_dir'" RETURN
     
     # Extract dimensions with timeout and error handling
     local height width
     local filename
-    filename=$(basename "$input_file")
+    filename=$(basename "$input_full_path")
     
     log_info "Extracting image dimensions..."
     
     if ! height=$(timeout 30 exiftool -s -s -s -ImageHeight "$filename" 2>/dev/null); then
-        log_error "Failed to extract height from: $input_file"
+        log_error "Failed to extract height from: $input_full_path"
         return 1
     fi
     
     if ! width=$(timeout 30 exiftool -s -s -s -ImageWidth "$filename" 2>/dev/null); then
-        log_error "Failed to extract width from: $input_file"
+        log_error "Failed to extract width from: $input_full_path"
         return 1
     fi
     
     # Validate extracted dimensions
     if [[ -z "$height" || -z "$width" ]]; then
-        log_error "Could not extract valid dimensions from: $input_file"
+        log_error "Could not extract valid dimensions from: $input_full_path"
         return 1
     fi
     
@@ -248,12 +256,12 @@ process_image() {
     # Run kubi with error handling and timeout
     log_info "Running kubi conversion..."
     
-    if ! timeout 300 kubi -s "${cubeface_size}" -f Right Left Up Down Front Back "${filename}" Panorama 2>/dev/null; then
-        log_error "kubi processing failed for: $input_file"
+    if ! timeout 300 kubi -s "${cubeface_size}" -f Right Left Up Down Front Back "${filename}" ${input_name} 2>/dev/null; then
+        log_error "kubi processing failed for: $input_full_path"
         return 1
     fi
     
-    log_success "Successfully processed: $input_file (cubeface size: $cubeface_size)"
+    log_success "Successfully processed: $input_full_path (cubeface size: $cubeface_size)"
     return 0
 }
 

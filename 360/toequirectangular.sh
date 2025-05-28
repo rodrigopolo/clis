@@ -396,7 +396,8 @@ validate_and_detect_files() {
     return 0
 }
 
-
+direct_width=''
+direct_height=''
 # Check if the first argument matches --size=WIDTHxHEIGHT
 if [[ "$1" =~ ^--size=[0-9]+x[0-9]+$ ]]; then
     # Extract width and height using parameter expansion

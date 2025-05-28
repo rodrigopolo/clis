@@ -58,6 +58,11 @@ Pano_Right.tif \
 Pano_Up.tif
 ```
 
+And you can also set the dimensions of the output
+```sh
+./toequirectangular.sh --size=4096x2048 Pano_Front.tif
+```
+
 ## `add360metadata.sh`
 Using `exiftool`, adds the necessary metadata to the `tif` file to be
 interpreted as a 360° panorama. It overwrites the original file:
@@ -90,6 +95,14 @@ To create the HTML and a multi-resolution cubemap for Pannellum, a lightweight,
 free, and open source panorama viewer for the web:
 ```sh
 ./topannellum.sh Panorama.tif
+```
+
+### `ptorows.sh`
+Process panorama `.pto` files by splitting them into rows with Hugin, and
+then merging the rows with fades using ImageMagick, a workoround to create huge
+panoramas with Hugin
+```sh
+./ptorows.sh panorama.pto
 ```
 
 ### Alternative to `tocubemap.sh`
