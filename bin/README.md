@@ -19,6 +19,31 @@
   * `encoding_test.sh`: Tests different presets and CRF values, capturing performance metrics.
   * `analyze_quality.sh`: Analyzes encoded videos against original using VMAF, SSIM, PSNR, and MS-SSIM.
 
+To make them available in the shell, you'll have to add the `~/.local/bin` dir
+to your shell `$PATH`, you can do this in two ways, adding
+`export PATH="$HOME/.local/bin:$PATH"` to your `~/.zshrc`, or managing your path
+like this:
+
+```sh
+hbp=$([ "$(uname -m)" = "arm64" ] && echo "/opt/homebrew" || echo "/usr/local")
+typeset -U path # Ensure path array has no duplicates
+path=(
+  $hbp/opt/coreutils/libexec/gnubin      # GNU coreutils (ls, cat, sort, etc.)
+  $hbp/opt/gnu-sed/libexec/gnubin        # GNU sed
+  $hbp/opt/grep/libexec/gnubin           # GNU grep
+  $hbp/opt/gawk/libexec/gnubin           # GNU awk
+  $hbp/opt/findutils/libexec/gnubin      # GNU findutils (find, xargs)
+  $hbp/opt/make/libexec/gnubin           # GNU make
+  $hbp/opt/curl/bin                      # Homebrew curl
+  $hbp/bin                               # nano, bash, wget, tree, jq, git, etc.
+  /opt/homebrew/opt/ruby/bin
+  /opt/homebrew/bin
+  $HOME/.bin
+  /usr/local/sbin
+  $HOME/.local/bin
+  $path
+)
+```
 
 Symbolic links
 ```sh
