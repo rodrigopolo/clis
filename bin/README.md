@@ -38,8 +38,8 @@ path=(
   $hbp/bin                               # nano, bash, wget, tree, jq, git, etc.
   /opt/homebrew/opt/ruby/bin
   /opt/homebrew/bin
-  $HOME/.bin
   /usr/local/sbin
+  $HOME/.bin
   $HOME/.local/bin
   $path
 )

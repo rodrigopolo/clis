@@ -43,7 +43,7 @@ show_usage() {
 }
 
 
-set -euo pipefail  # Exit on error, undefined vars, and pipe failures
+#set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 
 use_pi_calc=false
 is_fb_pano=false
