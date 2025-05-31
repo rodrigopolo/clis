@@ -10,8 +10,7 @@
 * [Dependencies](#dependencies)
 
 A collection of scripts to handle 360° panoramas in batch with ExifTool,
-ImageMagick and Hugin's `nona`, and `verdandi` CLIs.Check dependencies at the
-end.
+ImageMagick and Hugin's `nona`, and `verdandi` CLIs.
 
 ## Installing dependencies and scripts
 
@@ -22,14 +21,14 @@ image and drag the files to the Applications folder.
 
 Hugin for Apple Silicon / ARM64
 ```sh
-cd
+cd ~/Desktop
 curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2024.0.1_arm64.dmg
 open Hugin-2024.0.1_arm64.dmg
 ```
 
 Hugin for Intel
 ```sh
-cd
+cd ~/Desktop
 curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2023.0.0_Intel.dmg
 open Hugin-2023.0.0_Intel.dmg
 ```
@@ -44,7 +43,8 @@ official Homebrew site: https://brew.sh
 ```
 
 ### Other dependencies
-For this scripts to work, we need to install `exiftool` which makes the scripts able to read image information, and `imagemagick` for image manipulation:
+For this scripts to work, we need to install `exiftool` which makes the scripts
+able to read image information, and `imagemagick` for image manipulation:
 ```sh
 brew install exiftool imagemagick
 ```
@@ -114,6 +114,12 @@ interpreted as a 360° panorama. It overwrites the original file:
 ./add360metadata.sh Panorama.tif
 ```
 
+Installation
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/add360metadata.sh
+chmod +x add360metadata.sh
+```
+
 ### Geolocation
 To set the geolocation of the `tif` file, you can look for the location in
 Google Maps, then right-click on the place and select the decimal latitude
@@ -129,9 +135,21 @@ setlocation 14.596657575332861, -90.52320360681493 Panorama.tif
 ./tojpg.sh Panorama.tif
 ```
 
+Installation
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/tojpg.sh
+chmod +x tojpg.sh
+```
+
 ### Convert to maximum allowed dimensions for Facebook
 ```sh
 ./tofacebookjpg.sh Panorama.tif
+```
+
+Installation
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/tofacebookjpg.sh
+chmod +x tofacebookjpg.sh
 ```
 
 ### Publish
@@ -141,17 +159,38 @@ free, and open source panorama viewer for the web:
 ./topannellum.sh Panorama.tif
 ```
 
+Installation
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/topannellum.sh
+chmod +x topannellum.sh
+```
+
 #### Stitching and merging by rows or lines
-The `ptogrid_rows.sh` and `ptogrid.sh` are experimental scripts to deal with huge panoramas, by exporting `pto` files cropping by rows or lines. Options are shown when executing the script without any argument.
+The `ptogrid_rows.sh` and `ptogrid.sh` are experimental scripts to deal with
+huge panoramas, by exporting `pto` files cropping by rows or lines. Options are
+shown when executing the script without any argument.
 ```sh
 ./ptogrid.sh panorama.pto
 ./ptogrid_rows.sh panorama.pto
 ```
 
-#### Alternative to `tocubemap.sh`
-A faster alternative for `tocubemap.sh` is `kubi`, a cubemap generator based on `libvips`. In fact, it is 4.9x faster than Hugin's `nona`, but lacks the possibility to do the process in reverse, and doesn't calculate the output image size automatically.
+Installation
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/ptogrid.sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/ptogrid_rows.sh
+chmod +x ptogrid.sh
+chmod +x ptogrid_rows.sh
+```
 
-To install `kubi` on macOS you'll need to have Python installed, a quick and reliable way to have Python installed is with `pyenv` which can be installed with Homebrew:
+#### Alternative to `tocubemap.sh`
+A faster alternative for `tocubemap.sh` is `kubi`, a cubemap generator based on
+`libvips`. In fact, it is 4.9x faster than Hugin's `nona`, but lacks the
+possibility to do the process in reverse, and doesn't calculate the output image
+size automatically.
+
+To install `kubi` on macOS you'll need to have Python installed, a quick and
+reliable way to have Python installed is with `pyenv` which can be installed
+with Homebrew:
 
 ```sh
 brew install pyenv vips
@@ -160,7 +199,8 @@ echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zsh
 echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-The first command installs `pyenv` and `vips`, the other three add this to the `.zshrc` file:
+The first command installs `pyenv` and `vips`, the other three add this to the
+`.zshrc` file:
 ```
 brew install pyenv
 echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
@@ -168,13 +208,12 @@ echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zsh
 echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-Now that we have `pyenv` installed, we have to install a `Python` version and make it available systemwide:
+Now that we have `pyenv` installed, we have to install a `Python` version and
+make it available systemwide:
 ```sh
 pyenv install 3.10.4
 pyenv global 3.10.4
 ```
-
-More information on `pyenv`: https://github.com/pyenv/pyenv?tab=readme-ov-file#installation
 
 Once we have Python and `pip` installed, we install Kubi:
 ```sh
@@ -191,12 +230,17 @@ Here is a wrapper to make Kubi work as `tocubemap.sh`
 ./kubi.sh Panorama.tif
 ```
 
-More about `kubi`: https://github.com/indus/kubi
+And to install the wrapper
+```sh
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/kubi.sh
+chmod +x kubi.sh
+```
 
-### Dependencies
-* [Hugin](https://bitbucket.org/Dannephoto/hugin/downloads/) app, download and
-  install manually from Dannephoto repo.
-* [Homebrew](https://brew.sh/), The Missing Package Manager for macOS.
-* Library for reading and writing EXIF metadata
-  [`exiftool`](https://formulae.brew.sh/formula/exiftool), install using
-  Homebrew.
+### More about dependencies
+* About `exiftool`: https://formulae.brew.sh/formula/exiftool
+* About ImageMagick: https://imagemagick.org
+* About `kubi`: https://github.com/indus/kubi
+* About `pyenv`: https://github.com/pyenv/pyenv
+* About `libvips`: https://github.com/libvips/libvips
+* Homebrew: https://brew.sh
+* Hugin app from Dannephoto repo: https://bitbucket.org/Dannephoto/hugin/downloads/
