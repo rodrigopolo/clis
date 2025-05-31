@@ -35,23 +35,17 @@ MARGIN_PERCENTAGE=$DEFAULT_MARGIN_PERCENTAGE
 
 # Function to print usage
 usage() {
-    cat << 'EOF'
-Usage: ptogrid.sh [OPTIONS] <pano1.pto> [pano2.pto...]
-
-Generate tiled grids from panoramic PTO files.
-
-OPTIONS:
-    -v, --verbose       Enable verbose output
-    -k, --keep-temp     Keep temporary files for debugging
-    -m, --margin PERCENT Margin percentage (1-50) [default: 19]
-    -h, --help          Show this help message
-
-EXAMPLES:
-    ptogrid.sh panorama.pto
-    ptogrid.sh -v *.pto
-    ptogrid.sh --margin 25 --keep-temp pano.pto
-
-EOF
+    echo -e "Usage: $0 [OPTIONS] <pano1.pto> [pano2.pto...]\n" \
+            "Generate tiled grids from panoramic PTO files.\n" \
+            "OPTIONS:\n" \
+            "    -v, --verbose       Enable verbose output\n" \
+            "    -k, --keep-temp     Keep temporary files for debugging\n" \
+            "    -m, --margin PERCENT Margin percentage (1-50) [default: 19]\n" \
+            "    -h, --help          Show this help message\n" \
+            "EXAMPLES:\n" \
+            "    $0 panorama.pto\n" \
+            "    $0 -v *.pto\n" \
+            "    $0 --margin 25 --keep-temp pano.pto\n"
 }
 
 # Verbose logging function

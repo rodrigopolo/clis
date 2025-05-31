@@ -36,25 +36,19 @@ DESIRED_ROWS=0  # 0 means auto-calculate
 
 # Function to print usage
 usage() {
-    cat << 'EOF'
-Usage: ptogrid_rows.sh [OPTIONS] <pano1.pto> [pano2.pto...]
-
-Generate horizontal row strips from panoramic PTO files.
-
-OPTIONS:
-    -v, --verbose       Enable verbose output
-    -k, --keep-temp     Keep temporary files for debugging
-    -m, --margin PERCENT Margin percentage (1-50) [default: 19]
-    -r, --rows NUMBER   Desired number of rows (will find closest divisible) [default: auto]
-    -h, --help          Show this help message
-
-EXAMPLES:
-    ptogrid_rows.sh panorama.pto
-    ptogrid_rows.sh -v *.pto
-    ptogrid_rows.sh --rows 8 --margin 25 pano.pto
-    ptogrid_rows.sh --keep-temp --rows 4 pano.pto
-
-EOF
+echo -e "Usage: $0 [OPTIONS] <pano1.pto> [pano2.pto...]\n\n" \
+        "Generate horizontal row strips from panoramic PTO files.\n\n" \
+        "OPTIONS:\n" \
+        "    -v, --verbose        Enable verbose output\n" \
+        "    -k, --keep-temp      Keep temporary files for debugging\n" \
+        "    -m, --margin PERCENT Margin percentage (1-50) [default: 19]\n" \
+        "    -r, --rows NUMBER    Desired number of rows (will find closest divisible) [default: auto]\n" \
+        "    -h, --help           Show this help message\n\n" \
+        "EXAMPLES:\n" \
+        "    $0 panorama.pto\n" \
+        "    $0 -v *.pto\n" \
+        "    $0 --rows 8 --margin 25 pano.pto\n" \
+        "    $0 --keep-temp --rows 4 pano.pto\n\n"
 }
 
 # Verbose logging function
@@ -501,7 +495,7 @@ createpiece_row() {
 
     # Stitch the image
     if ! "${HUGIN_EXECUTOR_PATH}" --stitching --prefix="${filename}" "${temp_pto}" >> "${log_file}" 2>&1; then
-        error "Failed to stitch row r${row}_c${col}"
+        error "Failed to stitch row r${row}_c${col}, check margins."
         return 1
     fi
 
