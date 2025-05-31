@@ -429,6 +429,7 @@ parse_args() {
 
 # Create .PTO file
 create_pto_file() {
+    set +e
     local width=$1 height=$2 tile_width=$3 udrot=$4 hugin_file=$5 index
 
     index=0
@@ -480,6 +481,7 @@ v y5
 v
 EOF
 
+    set -e
     # Check if file was created successfully
     if [ $? -eq 0 ] && [ -f "$hugin_file" ]; then
         echo "Successfully created $hugin_file" >&2
@@ -488,6 +490,7 @@ EOF
         echo "Error: Failed to create $hugin_file" >&2
         return 1
     fi
+
 }
 
 # Main execution

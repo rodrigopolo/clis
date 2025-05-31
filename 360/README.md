@@ -13,16 +13,25 @@ A collection of scripts to handle 360° panoramas in batch with ExifTool,
 ImageMagick and Hugin's `nona`, and `verdandi` CLIs.Check dependencies at the
 end.
 
-## Installation
+## Installing dependencies and scripts
 
-### Hugin arm64
+### Hugin
 To install Hugin, **download it using the `curl` command** to avoid the
 headaches macOS provide when downloading something from the internet, open the
 image and drag the files to the Applications folder.
+
+Apple Silicon / ARM64
 ```sh
 cd
 curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2024.0.1_arm64.dmg
 open Hugin-2024.0.1_arm64.dmg
+```
+
+Intel
+```sh
+cd
+curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2023.0.0_Intel.dmg
+open Hugin-2023.0.0_Intel.dmg
 ```
 
 ### Homebrew
@@ -38,11 +47,6 @@ official Homebrew site: https://brew.sh
 To install any of the scripts, just download it using curl and give it execution
 permissions, the script will check for dependencies and show the usage if no
 arguments are provided.
-
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/toequirectangular.sh
-chmod
-```
 
 ## Scripts
 
@@ -91,9 +95,10 @@ Pano_Right.tif \
 Pano_Up.tif
 ```
 
-And you can also set the dimensions of the output
+Installation
 ```sh
-./toequirectangular.sh --size=4096x2048 Pano_Front.tif
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/toequirectangular.sh
+chmod +x toequirectangular.sh
 ```
 
 ### `add360metadata.sh`
@@ -174,5 +179,5 @@ Or just run the `kubi.sh` script
 
 Installing brew dependencies:
 ```sh
-brew install exiftool imagemagick bc
+brew install exiftool imagemagick
 ```
