@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024 Rodrigo Polo
+# Copyright (c) 2025 Rodrigo Polo
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,7 @@ set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 
 # Script configuration
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly REQUIRED_COMMANDS=("bc" "exiftool" "kubi")
+readonly REQUIRED_COMMANDS=("exiftool" "kubi")
 
 # Color codes for output
 readonly RED='\033[0;31m'
@@ -190,19 +190,19 @@ process_image() {
     # Ensure we return to original directory on exit
     #trap "cd '$original_dir'" RETURN
     
-    # Extract dimensions with timeout and error handling
+    # Extract dimensions and error handling
     local height width
     local filename
     filename=$(basename "$input_full_path")
     
     log_info "Extracting image dimensions..."
     
-    if ! height=$(timeout 30 exiftool -s -s -s -ImageHeight "$filename" 2>/dev/null); then
+    if ! height=$(exiftool -s -s -s -ImageHeight "$filename" 2>/dev/null); then
         log_error "Failed to extract height from: $input_full_path"
         return 1
     fi
     
-    if ! width=$(timeout 30 exiftool -s -s -s -ImageWidth "$filename" 2>/dev/null); then
+    if ! width=$(exiftool -s -s -s -ImageWidth "$filename" 2>/dev/null); then
         log_error "Failed to extract width from: $input_full_path"
         return 1
     fi
@@ -253,10 +253,10 @@ process_image() {
         return 1
     fi
     
-    # Run kubi with error handling and timeout
+    # Run kubi with error handling
     log_info "Running kubi conversion..."
     
-    if ! timeout 300 kubi -s "${cubeface_size}" -f Right Left Up Down Front Back "${filename}" ${input_name} 2>/dev/null; then
+    if ! kubi -s "${cubeface_size}" -f Right Left Up Down Front Back "${filename}" ${input_name} 2>/dev/null; then
         log_error "kubi processing failed for: $input_full_path"
         return 1
     fi

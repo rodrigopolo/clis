@@ -157,13 +157,13 @@ process in reverse, and doesn't calculate the output image size automatically.
 To install `kubi` on macOS you'll need to have Python installed, a quick and reliable way to have Python installed is with `pyenv` which can be installed with Homebrew:
 
 ```sh
-brew install pyenv
+brew install pyenv vips
 echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
 echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
 echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-The first command installs `pyenv`, the other three add this to the `.zshrc` file:
+The first command installs `pyenv` and `vips`, the other three add this to the `.zshrc` file:
 ```
 brew install pyenv
 echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
