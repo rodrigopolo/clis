@@ -113,14 +113,14 @@ find_tool() {
 # Function to check required tools
 check_dependencies() {
     local missing_tools=()
-    local tools=("pano_modify" "hugin_executor" "magick")
+    local tools=("nona" "verdandi" "exiftool")
 
     for tool in "${tools[@]}"; do
         if ! find_tool "$tool" >/dev/null 2>&1; then
             missing_tools+=("$tool")
         fi
     done
-    
+    # pano_modify hugin_executor magick
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         error "Missing required tools: ${missing_tools[*]}"
         echo ""
