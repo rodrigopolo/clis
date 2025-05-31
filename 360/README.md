@@ -20,14 +20,14 @@ To install Hugin, **download it using the `curl` command** to avoid the
 headaches macOS provide when downloading something from the internet, open the
 image and drag the files to the Applications folder.
 
-Apple Silicon / ARM64
+Hugin for Apple Silicon / ARM64
 ```sh
 cd
 curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2024.0.1_arm64.dmg
 open Hugin-2024.0.1_arm64.dmg
 ```
 
-Intel
+Hugin for Intel
 ```sh
 cd
 curl -L --progress-bar -O https://bitbucket.org/Dannephoto/hugin/downloads/Hugin-2023.0.0_Intel.dmg
@@ -41,6 +41,12 @@ official Homebrew site: https://brew.sh
 
 ```sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Other dependencies
+For this scripts to work, we need to install `exiftool` which makes the scripts able to read image information, and `imagemagick` for image manipulation:
+```sh
+brew install exiftool imagemagick
 ```
 
 ### Any of the scripts available here
@@ -147,37 +153,54 @@ panoramas with Hugin
 A faster alternative is `kubi`, a cubemap generator based on `libvips`. In fact,
 it is 4.9x faster than Hugin's `nona`, but lacks the possibility to do the
 process in reverse, and doesn't calculate the output image size automatically.
-To install on macOS with `conda`:
+
+To install `kubi` on macOS you'll need to have Python installed, a quick and reliable way to have Python installed is with `pyenv` which can be installed with Homebrew:
 
 ```sh
-brew install vips
-pip uninstall pyvips # Just in case
-conda install conda-forge::pyvips
+brew install pyenv
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-And to produce the same results as with `tocubemap.sh`:
+The first command installs `pyenv`, the other three add this to the `.zshrc` file:
+```
+brew install pyenv
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
+```
+
+Now that we have `pyenv` installed, we have to install a `Python` version and make it available systemwide:
+```sh
+pyenv install 3.10.4
+pyenv global 3.10.4
+```
+
+More information on `pyenv`: https://github.com/pyenv/pyenv?tab=readme-ov-file#installation
+
+Once we have Python and `pip` installed, we install Kubi:
+```sh
+pip install git+https://github.com/indus/kubi.git
+```
+
+To produce the same results as with `tocubemap.sh`:
 ```sh
 kubi -s 6848 -f Right Left Up Down Front Back Panorama.tif Panorama
 ```
 
-Or just run the `kubi.sh` script
+Here is a wrapper to make Kubi work as `tocubemap.sh`
 ```sh
 ./kubi.sh Panorama.tif
 ```
 
-[More about `kubi`](https://github.com/indus/kubi)
+More about `kubi`: https://github.com/indus/kubi
 
 ### Dependencies
 * [Hugin](https://bitbucket.org/Dannephoto/hugin/downloads/) app, download and
   install manually from Dannephoto repo.
 * [Homebrew](https://brew.sh/), The Missing Package Manager for macOS.
-* Arbitrary precision numeric processing language 
-  [`bc`](https://formulae.brew.sh/formula/bc), install using Homebrew.
-* Perl lib for reading and writing EXIF metadata
+* Library for reading and writing EXIF metadata
   [`exiftool`](https://formulae.brew.sh/formula/exiftool), install using
   Homebrew.
 
-Installing brew dependencies:
-```sh
-brew install exiftool imagemagick
-```
