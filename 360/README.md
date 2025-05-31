@@ -141,18 +141,15 @@ free, and open source panorama viewer for the web:
 ./topannellum.sh Panorama.tif
 ```
 
-#### `ptorows.sh`
-Process panorama `.pto` files by splitting them into rows with Hugin, and
-then merging the rows with fades using ImageMagick, a workoround to create huge
-panoramas with Hugin
+#### Stitching and merging by rows or lines
+The `ptogrid_rows.sh` and `ptogrid.sh` are experimental scripts to deal with huge panoramas, by exporting `pto` files cropping by rows or lines. Options are shown when executing the script without any argument.
 ```sh
-./ptorows.sh panorama.pto
+./ptogrid.sh panorama.pto
+./ptogrid_rows.sh panorama.pto
 ```
 
 #### Alternative to `tocubemap.sh`
-A faster alternative is `kubi`, a cubemap generator based on `libvips`. In fact,
-it is 4.9x faster than Hugin's `nona`, but lacks the possibility to do the
-process in reverse, and doesn't calculate the output image size automatically.
+A faster alternative for `tocubemap.sh` is `kubi`, a cubemap generator based on `libvips`. In fact, it is 4.9x faster than Hugin's `nona`, but lacks the possibility to do the process in reverse, and doesn't calculate the output image size automatically.
 
 To install `kubi` on macOS you'll need to have Python installed, a quick and reliable way to have Python installed is with `pyenv` which can be installed with Homebrew:
 
@@ -203,4 +200,3 @@ More about `kubi`: https://github.com/indus/kubi
 * Library for reading and writing EXIF metadata
   [`exiftool`](https://formulae.brew.sh/formula/exiftool), install using
   Homebrew.
-

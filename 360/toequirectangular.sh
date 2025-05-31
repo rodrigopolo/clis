@@ -61,7 +61,7 @@ usage() {
         "  - With underscore: Prefix_Back.tif, Prefix_Front.tif, etc.\n" \
         "  - Without underscore: PrefixBack.tif, PrefixFront.tif, etc.\n\n" \
         "Required face names: Back, Down, Front, Left, Right, Up\n" \
-        "All cubemap faces must be square images with identical dimensions.\n"
+        "All cubemap faces must be square images with identical dimensions.\n" >&2
 }
 
 # Verbose logging function
