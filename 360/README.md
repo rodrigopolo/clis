@@ -199,13 +199,12 @@ echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zsh
 echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-The first command installs `pyenv` and `vips`, the other three add this to the
-`.zshrc` file:
+The first line on the commands above, installs `pyenv` and `vips`, the other
+three add this to the `.zshrc` file, this could be different on each system:
 ```
-brew install pyenv
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
-echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
-echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - zsh)"
 ```
 
 Now that we have `pyenv` installed, we have to install a `Python` version and
