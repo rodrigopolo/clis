@@ -16,7 +16,7 @@ for url in "$@"; do
     if [[ $url =~ ^https://(x\.com|twitter\.com)/([^/]+)/status/([0-9]+)$ ]]; then
         username="${BASH_REMATCH[2]}"
         id="${BASH_REMATCH[3]}"
-        youtube-dl  "$url" -o "$username-$id-%(autonumber)s.mp4"
+        yt-dlp  "$url" -o "$username-$id-%(autonumber)s.mp4"
     else
         echo "Invalid URL format: $url" >&2
     fi

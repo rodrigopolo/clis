@@ -50,9 +50,25 @@ brew install exiftool imagemagick
 ```
 
 ### Any of the scripts available here
-To install any of the scripts, just download it using curl and give it execution
-permissions, the script will check for dependencies and show the usage if no
-arguments are provided.
+To install any of the scripts, you can either clone the repo, or download each
+script using curl and give it execution permissions, most of the scripts will
+check for dependencies and show the usage if no arguments are provided.
+
+Cloning the repo and running a script:
+```sh
+cd
+git clone https://github.com/rodrigopolo/clis.git
+cd clis/360
+./toequirectangular.sh
+```
+
+Download just one script, and running it:
+```sh
+cd ~/Desktop
+curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/toequirectangular.sh
+chmod +x toequirectangular.sh
+./toequirectangular.sh
+```
 
 ## Scripts
 
@@ -101,23 +117,11 @@ Pano_Right.tif \
 Pano_Up.tif
 ```
 
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/toequirectangular.sh
-chmod +x toequirectangular.sh
-```
-
 ### `add360metadata.sh`
 Using `exiftool`, adds the necessary metadata to the `tif` file to be
 interpreted as a 360° panorama. It overwrites the original file:
 ```sh
 ./add360metadata.sh Panorama.tif
-```
-
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/add360metadata.sh
-chmod +x add360metadata.sh
 ```
 
 ### Geolocation
@@ -135,21 +139,9 @@ setlocation 14.596657575332861, -90.52320360681493 Panorama.tif
 ./tojpg.sh Panorama.tif
 ```
 
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/tojpg.sh
-chmod +x tojpg.sh
-```
-
 ### Convert to maximum allowed dimensions for Facebook
 ```sh
 ./tofacebookjpg.sh Panorama.tif
-```
-
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/tofacebookjpg.sh
-chmod +x tofacebookjpg.sh
 ```
 
 ### Publish
@@ -157,12 +149,6 @@ To create the HTML and a multi-resolution cubemap for Pannellum, a lightweight,
 free, and open source panorama viewer for the web:
 ```sh
 ./topannellum.sh Panorama.tif
-```
-
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/topannellum.sh
-chmod +x topannellum.sh
 ```
 
 #### Stitching and merging by rows or lines
@@ -174,14 +160,6 @@ shown when executing the script without any argument.
 ./ptogrid_rows.sh panorama.pto
 ```
 
-Installation
-```sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/ptogrid.sh
-curl -O https://raw.githubusercontent.com/rodrigopolo/clis/refs/heads/main/360/ptogrid_rows.sh
-chmod +x ptogrid.sh
-chmod +x ptogrid_rows.sh
-```
-
 #### Alternative to `tocubemap.sh`
 A faster alternative for `tocubemap.sh` is `kubi`, a cubemap generator based on
 `libvips`. In fact, it is 4.9x faster than Hugin's `nona`, but lacks the
@@ -189,18 +167,23 @@ possibility to do the process in reverse, and doesn't calculate the output image
 size automatically.
 
 To install `kubi` on macOS you'll need to have Python installed, a quick and
-reliable way to have Python installed is with `pyenv` which can be installed
-with Homebrew:
+reliable way to have Python installed is `pyenv`, a Python version manager that
+lets you easily install, switch between, and manage multiple Python versions,
+`pyenv` needs to be installed with Homebrew:
 
 ```sh
-brew install pyenv vips
+brew install pyenv
+```
+
+After installing `pyenv` it will show some commands to add `pyenv` to the shell:
+```sh
 echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
 echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
 echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
 ```
 
-The first line on the commands above, installs `pyenv` and `vips`, the other
-three add this to the `.zshrc` file, this could be different on each system:
+These commands adds this to the `.zshrc` file the `pyenv` initialization, this
+could vary from system to system:
 ```
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
@@ -217,6 +200,12 @@ pyenv global 3.10.4
 Once we have Python and `pip` installed, we install Kubi:
 ```sh
 pip install git+https://github.com/indus/kubi.git
+```
+
+Kubi requires `libvips`, an Image processing library that can be installed with
+Homebrew
+```sh
+brew install vips
 ```
 
 To produce the same results as with `tocubemap.sh`:
