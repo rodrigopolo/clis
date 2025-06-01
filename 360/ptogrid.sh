@@ -35,17 +35,21 @@ MARGIN_PERCENTAGE=$DEFAULT_MARGIN_PERCENTAGE
 
 # Function to print usage
 usage() {
-    echo -e "Usage: $0 [OPTIONS] <pano1.pto> [pano2.pto...]\n" \
-            "Generate tiled grids from panoramic PTO files.\n" \
-            "OPTIONS:\n" \
-            "    -v, --verbose       Enable verbose output\n" \
-            "    -k, --keep-temp     Keep temporary files for debugging\n" \
-            "    -m, --margin PERCENT Margin percentage (1-50) [default: 19]\n" \
-            "    -h, --help          Show this help message\n" \
-            "EXAMPLES:\n" \
-            "    $0 panorama.pto\n" \
-            "    $0 -v *.pto\n" \
-            "    $0 --margin 25 --keep-temp pano.pto\n"
+    cat << EOF >&2
+Usage: $(basename "$0") [OPTIONS] <pano1.pto> [pano2.pto...]
+Generate tiled grids from panoramic PTO files.
+
+OPTIONS:
+    -v, --verbose       Enable verbose output
+    -k, --keep-temp     Keep temporary files for debugging
+    -m, --margin PERCENT Margin percentage (1-50) [default: 19]
+    -h, --help          Show this help message
+EXAMPLES:
+    $(basename "$0") panorama.pto
+    $(basename "$0") -v *.pto
+    $(basename "$0") --margin 25 --keep-temp pano.pto
+
+EOF
 }
 
 # Verbose logging function
@@ -67,11 +71,11 @@ find_tool() {
     
     # Common locations to check
     local common_paths=(
-        "/usr/bin/${tool_name}"
-        "/usr/local/bin/${tool_name}"
-        "$HOME/.local/bin/${tool_name}"
-        "/opt/homebrew/bin/${tool_name}"
         "/Applications/Hugin/tools_mac/${tool_name}"
+        "/opt/homebrew/bin/${tool_name}"
+        "$HOME/.local/bin/${tool_name}"
+        "/usr/local/bin/${tool_name}"
+        "/usr/bin/${tool_name}"
     )
     
     # First check if it's in PATH
@@ -416,8 +420,8 @@ parse_args() {
                 ;;
             -m|--margin)
                 if [[ -z "${2:-}" ]]; then
-                    error "Margin option requires a value"
                     usage
+                    error "Margin option requires a value"
                     exit 1
                 fi
                 MARGIN_PERCENTAGE="$2"
@@ -432,8 +436,8 @@ parse_args() {
                 exit 0
                 ;;
             -*)
-                error "Unknown option: $1"
                 usage
+                error "Unknown option: $1"
                 exit 1
                 ;;
             *)
@@ -459,8 +463,8 @@ main() {
     
     # Validate input
     if [[ ${#FILES[@]} -lt 1 ]]; then
-        error "No input files specified"
         usage
+        error "No input files specified"
         exit 1
     fi
 

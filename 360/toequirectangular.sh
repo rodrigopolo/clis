@@ -37,31 +37,36 @@ SIZE_H=0
 
 # Function to show usage
 usage() {
-    echo -e "Usage:\n" \
-        "  $0 [OPTIONS] Prefix_Back.tif\n\n" \
-        "  $0 [OPTIONS] \ \n" \
-        "     Prefix_Back.tif  \ \n" \
-        "     Prefix_Down.tif  \ \n" \
-        "     Prefix_Front.tif \ \n" \
-        "     Prefix_Left.tif  \ \n" \
-        "     Prefix_Right.tif \ \n" \
-        "     Prefix_Up.tif\n\n" \
-        "OPTIONS:\n" \
-        "    -v, --verbose       Enable verbose output.\n" \
-        "    -f, --flip-top      Top fliped 180 degrees.\n" \
-        "    -s, --size          Modify the ouput size. (Ej: 4096x2048)\n" \
-        "    -h, --help          Show this help message\n\n" \
-        "The script can work in two modes:\n" \
-        "  1. Single file mode: Provide any one cubemap face file\n" \
-        "     - Script will auto-detect the prefix and find all other faces\n" \
-        "     - Output will be named: Prefix_equirectangular.extension\n\n" \
-        "  2. Multiple file mode: Provide all 6 cubemap face files\n" \
-        "     - All files must share the same prefix and extension\n\n" \
-        "Supported naming patterns:\n" \
-        "  - With underscore: Prefix_Back.tif, Prefix_Front.tif, etc.\n" \
-        "  - Without underscore: PrefixBack.tif, PrefixFront.tif, etc.\n\n" \
-        "Required face names: Back, Down, Front, Left, Right, Up\n" \
-        "All cubemap faces must be square images with identical dimensions.\n" >&2
+    cat << EOF >&2
+Usage:
+  $(basename "$0") [OPTIONS] Prefix_Back.tif
+  $(basename "$0") [OPTIONS] \ 
+     Prefix_Back.tif  Prefix_Down.tif  Prefix_Front.tif \
+     Prefix_Left.tif  Prefix_Right.tif Prefix_Up.tif
+
+OPTIONS:
+    -v, --verbose       Enable verbose output.
+    -f, --flip-top      Top fliped 180 degrees.
+    -s, --size          Modify the ouput size. (Ej: 4096x2048)
+    -h, --help          Show this help message
+
+The script can work in two modes:
+
+  1. Single file mode: Provide any one cubemap face file
+     - Script will auto-detect the prefix and find all other faces
+     - Output will be named: Prefix_equirectangular.extension
+
+  2. Multiple file mode: Provide all 6 cubemap face files
+     - All files must share the same prefix and extension
+
+Supported naming patterns:
+  - With underscore: Prefix_Back.tif, Prefix_Front.tif, etc.
+  - Without underscore: PrefixBack.tif, PrefixFront.tif, etc.
+
+Required face names: Back, Down, Front, Left, Right, Up, all cubemap faces must
+be square images with identical dimensions.
+
+EOF
 }
 
 # Verbose logging function
@@ -378,8 +383,8 @@ parse_args() {
                 ;;
             -s|--size)
                 if [[ -z "${2:-}" ]]; then
-                    error "Size option requires a value"
                     usage
+                    error "Size option requires a value"
                     exit 1
                 fi
                 dim="$2"
@@ -502,13 +507,13 @@ main() {
 
     # Validate input
     if [[ ${#FILES[@]} -lt 1 ]]; then
-        error "No input files specified"
         usage
+        error "No input files specified"
         exit 1
     elif [[ ${#FILES[@]} -gt 6 ]]; then
+        usage
         error "Invalid number of arguments: ${#FILES[@]}"
         error "Provide either 1 file (auto-detect mode) or all 6 cubemap faces"
-        usage
         exit 1
     else
        log "Detecting all faces from prefix"

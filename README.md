@@ -5,7 +5,18 @@ Multiple command line utilities and scripts for the daily use.
 * [Local Bin](./bin)
 * [360](./360)
 
-## Installation
+## Dependencies
+
+### Homebrew
+You'll need to install Homebrew, the free and open-source software package
+management system for macOS, installations instrucctions are available in the
+official Homebrew site: https://brew.sh
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+## CLIs Installation
 Cloning the repo into your home folder
 ```sh
 cd
@@ -26,17 +37,6 @@ Update the scripts
 ```sh
 cd ~/clis
 git pull
-```
-
-## Dependencies
-
-### Homebrew
-You'll need to install Homebrew, the free and open-source software package
-management system for macOS, installations instrucctions are available in the
-official Homebrew site: https://brew.sh
-
-```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ### For the scripts in the `bin` folder
