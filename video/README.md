@@ -29,3 +29,8 @@ To display a progress bar instead of the typical `FFmpeg` output, first install 
 ```sh
 pip install --user ffpb
 ```
+
+Make sure to have `~/.local/bin` into your system `$PATH`
+```sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
