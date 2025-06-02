@@ -193,19 +193,20 @@ eval "$(pyenv init - zsh)"
 Now that we have `pyenv` installed, we have to install a `Python` version and
 make it available systemwide:
 ```sh
-pyenv install 3.10.4
-pyenv global 3.10.4
-```
-
-Once we have Python and `pip` installed, we install Kubi:
-```sh
-pip install git+https://github.com/indus/kubi.git
+pyenv install 3.13.3
+pyenv global 3.13.3
+pip install --upgrade pip
 ```
 
 Kubi requires `libvips`, an Image processing library that can be installed with
 Homebrew
 ```sh
 brew install vips
+```
+
+Once we have Python, `libvips` and `pip` installed, we install Kubi:
+```sh
+pip install git+https://github.com/indus/kubi.git
 ```
 
 To produce the same results as with `tocubemap.sh`:
