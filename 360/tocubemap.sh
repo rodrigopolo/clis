@@ -29,12 +29,13 @@ command_exists() {
 
 # Function to find nona executable
 find_nona() {
+    local tool_name="nona"
     local nona_paths=(
-        "/usr/bin/${tool_name}"
-        "/usr/local/bin/${tool_name}"
-        "$HOME/.local/bin/${tool_name}"
-        "/opt/homebrew/bin/${tool_name}"
         "/Applications/Hugin/tools_mac/${tool_name}"
+        "/opt/homebrew/bin/${tool_name}"
+        "$HOME/.local/bin/${tool_name}"
+        "/usr/local/bin/${tool_name}"
+        "/usr/bin/${tool_name}"
     )
     
     for path in "${nona_paths[@]}"; do
