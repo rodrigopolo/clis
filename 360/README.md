@@ -210,7 +210,11 @@ brew install vips
 
 To produce the same results as with `tocubemap.sh`:
 ```sh
-kubi -s 6848 -f Right Left Up Down Front Back Panorama.tif Panorama
+kubi \
+-s 6848 \
+-f Right Left Up Down Front Back \
+Panorama.tif \
+Panorama
 ```
 
 Here is a wrapper to make Kubi work as `tocubemap.sh`
