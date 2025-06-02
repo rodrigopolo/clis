@@ -43,7 +43,7 @@ git pull
 
 Install the following brew formulas
 ```sh
-brew install wget mediainfo exiftool ffmpeg yt-dlp aria2c
+brew install wget mediainfo exiftool ffmpeg yt-dlp aria2
 ```
 
 ### Python
