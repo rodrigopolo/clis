@@ -14,9 +14,6 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
-# Modifying the internal field separator
-IFS=$'\t\n'
-
 # Side names and cube dimensions (immutable arrays)
 readonly sides=("Left" "Front" "Right" "Back" "Up" "Down")
 readonly sides_short=("l" "f" "r" "b" "u" "d")
@@ -222,10 +219,18 @@ main() {
     log "Processing complete"
 }
 
+# Modifying the internal field separator
+IFS=$'\t\n'
+
 # Validate input
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 ]]; then
     usage
 fi
 
-# Execute main function with script arguments
-main "$@"
+for f in $@; do
+    main "$f"
+done
+
+
+
+
