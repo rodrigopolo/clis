@@ -45,7 +45,7 @@ usage() {
 
 # Logging function
 log() {
-    echo "[*] $*" >&2
+    echo -e "[$(date '+%H:%M:%S')] $*" >&2
 }
 
 # Error handling function
@@ -183,7 +183,7 @@ main() {
 
     # Convert to cubemap
     log "Converting to cubemap"
-    "$script_dir/tocubemap.sh" "$input_file"
+    "$script_dir/kubi.sh" "$input_file"
 
     # Get cube dimensions
     local cubesize
@@ -215,6 +215,12 @@ main() {
     log "Creating zip file"
     cd "$dir"
     zip -r -X "${bname}.zip" "${bname}"
+
+    # Manually delete the temporary directory
+    cleanup "${prefix}"
+
+    # Disable the trap to prevent it from running on script exit or interruption
+    trap - EXIT
 
     log "Processing complete"
 }
