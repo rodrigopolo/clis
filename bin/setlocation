@@ -10,7 +10,7 @@ IFS=$'\t\n'
 
 # Check if the correct number of arguments are provided
 if [ "$#" -lt 3 ]; then
-	echo "Usage: $0 <latitude> <longitude> <filename1> [<filename2> ...]"
+	echo "Usage: $(basename "$0") <latitude> <longitude> <filename1> [<filename2> ...]"
 	exit 1
 fi
 

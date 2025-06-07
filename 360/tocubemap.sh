@@ -78,7 +78,7 @@ check_dependencies() {
 
 # Check if the script has received an argument
 if [[ "$#" -lt 1 ]]; then
-    echo "Usage: $0 <pano1.tif> <pano2.tif>..." >&2
+    echo "Usage: $(basename "$0") <pano1.tif> <pano2.tif>..." >&2
     echo "Converts equirectangular panoramic images to cube face images." >&2
     exit 1
 fi

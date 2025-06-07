@@ -22,7 +22,7 @@ fi
 
 # Check if any files were provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 [--sep=tab] <file1> [file2] ..."
+    echo "Usage: $(basename "$0") [--sep=tab] <file1> [file2] ..."
     echo "Examples:"
     echo "  $0 *.jpg                    # Comma-separated output"
     echo "  $0 --sep=tab *.jpg          # Tab-separated output"

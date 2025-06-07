@@ -39,7 +39,7 @@ round_to_closest_divisor() {
 
 # Script description and usage
 usage() {
-    echo "Usage: $0 <input_equirectangular_image>" >&2
+    echo "Usage: $(basename "$0") <input_equirectangular_image>" >&2
     exit 1
 }
 

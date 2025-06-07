@@ -7,7 +7,7 @@
 
 # Check if a stream URL is provided
 if [ -z "$1" ]; then
-	echo "Usage: $0 <stream_url>"
+	echo "Usage: $(basename "$0") <stream_url>"
 	exit 1
 fi
 
