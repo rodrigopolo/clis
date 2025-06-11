@@ -12,6 +12,6 @@ if [ -z "$1" ]; then
 	echo  No input file specified.
 	echo
 else
-	mediainfo "--Inform=file://${HOME}/.local/bin/minfo_template.txt" "$@"
+	mediainfo "--Inform=file://${HOME}/clis/bin/minfo_template.txt" "$@"
 fi
 
