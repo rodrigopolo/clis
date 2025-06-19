@@ -33,6 +33,7 @@ FILES=()
 # Command line options
 HEVC_CRF=20
 HEVC_PRESET='superfast'
+SKIP=0
 VERBOSE=0
 COPY_DATES=0
 COPY_TAGS=0
@@ -42,8 +43,8 @@ OUTPUT_SUFFIX=".hevc"
 ORIGINAL_SUFFIX=".done"
 COLOR_TAG="green"
 SUCCESS_ACTION=""
-MAX_WIDTH=3840
-MAX_HEIGHT=2160
+MAX_WIDTH=0
+MAX_HEIGHT=0
 FLIP_ROTATE=""
 
 
@@ -78,6 +79,8 @@ Options:
   -t, --tag-color <color>     Set Finder color tag for --after-encode=label
                               orange, red, yellow, blue, purple, green, gray;
                               * Default: ${COLOR_TAG}
+  --skip                      Skip encoding if it is already HEVC and dimensions
+                              are already meet
   --osufix <suffix>           Set output suffix (default: ${OUTPUT_SUFFIX})
   --isufix <suffix>           Set input suffix after encoding (default: ${ORIGINAL_SUFFIX})
   --dates                     Copy file modification dates to output
@@ -312,7 +315,6 @@ get_rotate_filter() {
     return 0
 }
 
-
 # To check size limits
 get_resize_filter() {
     local input_width="$1" input_height="$2"
@@ -499,8 +501,12 @@ encode() {
     input_height=$(echo "$json_info" | jq -r '.media.track[] | select(.["@type"]=="Video") | .Height' 2>/dev/null | head -1)
     original_duration=$(echo "$json_info" | jq -r '.media.track[] | select(.["@type"]=="Video") | .Duration' 2>/dev/null)
 
-    # Get resize and rotate filters
-    resize_filter=$(get_resize_filter "$input_width" "$input_height")
+    # Get resize and rotate filters if defined in the args
+    if [[ -n "$MAX_WIDTH" && -n "$MAX_HEIGHT" && "$MAX_WIDTH" =~ ^[0-9]+$ && "$MAX_HEIGHT" =~ ^[0-9]+$ && "$MAX_WIDTH" -gt 0 && "$MAX_HEIGHT" -gt 0 ]]; then
+        resize_filter=$(get_resize_filter "$input_width" "$input_height")
+    else
+        resize_filter=""
+    fi
     rotate_filter=$(get_rotate_filter)
 
     # Log encoding decision
@@ -509,7 +515,8 @@ encode() {
     fi
 
     # Skip encoding if already HEVC and no resizing needed
-    if [[ -n "$has_hevc" && -z "$resize_filter" ]]; then
+    #if [[ -n "$has_hevc" && -z "$resize_filter" ]]; then
+    if [[ "$SKIP" == 1 && -n "$has_hevc" && -z "$resize_filter" ]]; then
         echo "Video is already HEVC and does not require resizing, skipping encoding." >&2
         return 0
     fi
@@ -629,6 +636,14 @@ parse_args() {
                 # Extract the two numbers using parameter expansion or cut
                 MAX_WIDTH=${dim%x*}  # Get everything before 'x'
                 MAX_HEIGHT=${dim#*x} # Get everything after 'x'
+
+                # Validate MAX_WIDTH and MAX_HEIGHT
+                if [[ -z "$MAX_WIDTH" || -z "$MAX_HEIGHT" || ! "$MAX_WIDTH" =~ ^[0-9]+$ || ! "$MAX_HEIGHT" =~ ^[0-9]+$ || "$MAX_WIDTH" -le 0 || "$MAX_HEIGHT" -le 0 ]]; then
+                    usage
+                    error "Size must be in the format NUMBERxNUMBER with positive integers (e.g., 3840x2160)"
+                    exit 1
+                fi
+
                 shift 2
                 ;;
             -r|--flip-rotate)
@@ -669,7 +684,7 @@ parse_args() {
             --isufix)
                 if [[ -z "${2:-}" ]]; then
                     usage
-                    error "Output suffix requires a value"
+                    error "Input suffix requires a value"
                     exit 1
                 fi
                 ORIGINAL_SUFFIX="$2"
@@ -682,6 +697,10 @@ parse_args() {
                 fi
                 shopt -u nocasematch
                 shift 2
+                ;;
+            --skip)
+                SKIP=1
+                shift
                 ;;
             --dates)
                 COPY_DATES=1
@@ -791,7 +810,7 @@ main() {
         FFTOOLN="ffmpeg"
     fi
 
-    # Process each PTO file
+    # Process each video
     local failed_files=()
     for file in "${FILES[@]}"; do
         if validate_video_file "$file"; then
