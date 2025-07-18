@@ -25,13 +25,13 @@ readonly COLORS=("no" "orange" "red" "yellow" "blue" "purple" "green" "gray")
 # Global variables for tool paths
 MEDIAINFO_PATH=""
 FFMPEG_PATH=""
-FFPB_PATH=""
+FPB_PATH=""
 FFTOOL=""
 FFTOOLN=""
 FILES=()
 
 # Command line options
-HEVC_CRF=20
+HEVC_CRF=22
 HEVC_PRESET='superfast'
 SKIP=0
 VERBOSE=0
@@ -802,9 +802,9 @@ main() {
     FFMPEG_PATH=$(find_tool "ffmpeg")
     
     # Check if ffpb is installed
-    if FFPB_PATH=$(find_tool "ffpb"); then
-        FFTOOL="$FFPB_PATH"
-        FFTOOLN="ffpb"
+    if FPB_PATH=$(find_tool "fpb"); then
+        FFTOOL="$FPB_PATH"
+        FFTOOLN="fpb"
     else
         FFTOOL="$FFMPEG_PATH"
         FFTOOLN="ffmpeg"
