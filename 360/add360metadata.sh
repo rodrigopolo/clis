@@ -19,11 +19,25 @@ IFS=$'\t\n'
 
 for f in $@; do
 
+    # Get image dimensions
+    WIDTH=$(exiftool -s -s -s -ImageWidth "$f")
+    HEIGHT=$(exiftool -s -s -s -ImageHeight "$f")
+
     # Execute exiftool command
     exiftool \
         -overwrite_original \
         -ProjectionType="equirectangular" \
-        -XMP-GPano:InitialViewHeadingDegrees=0 \
+        -XMP-GPano:UsePanoramaViewer="True" \
+        -XMP-GPano:ProjectionType="equirectangular" \
+        -XMP-GPano:CroppedAreaImageWidthPixels="$WIDTH" \
+        -XMP-GPano:CroppedAreaImageHeightPixels="$HEIGHT" \
+        -XMP-GPano:FullPanoWidthPixels="$WIDTH" \
+        -XMP-GPano:FullPanoHeightPixels="$HEIGHT" \
+        -XMP-GPano:CroppedAreaLeftPixels="0" \
+        -XMP-GPano:CroppedAreaTopPixels="0" \
+        -XMP-GPano:PoseHeadingDegrees="0" \
+        -XMP-GPano:InitialViewHeadingDegrees="0" \
+        -XMP-GPano:StitchingSoftware="Custom" \
         -Keywords+=360i \
         "$f"
 
@@ -34,4 +48,6 @@ for f in $@; do
     fi
 
 done
+
+
 
