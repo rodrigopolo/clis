@@ -17,6 +17,8 @@
 # Modifying the internal field separator
 IFS=$'\t\n'
 
+# -XMP-GPano:PoseHeadingDegrees="0" - This is the primary flag that defines the relationship between the image and north.
+# -XMP-GPano:InitialViewHeadingDegrees="0" - This defines the initial viewing direction when the panorama is first displayed, also relative to north.
 for f in $@; do
 
     # Get image dimensions

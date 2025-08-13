@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+#
+# zip a folder without dot files
+# Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
+#
+
+# Modifying the internal field separator
+IFS=$'\t\n'
+
+
+# Loop through all filenames
+for dirname in "$@"; do
+    zip \
+    -r ${dirname}.zip \
+    ${dirname} \
+    -x "${dirname}/.*"
+done

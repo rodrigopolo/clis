@@ -214,7 +214,11 @@ main() {
 
     log "Creating zip file"
     cd "$dir"
-    zip -r -X "${bname}.zip" "${bname}"
+    # Zip without macos fot files
+    zip \
+    -r "${bname}.zip" \
+    ${bname} \
+    -x "${bname}/.*"
 
     # Manually delete the temporary directory
     cleanup "${prefix}"

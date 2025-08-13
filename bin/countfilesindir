@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Loop through each directory in the current working directory
+for dir in "$PWD"/*/ ; do
+    # Check if it's actually a directory
+    if [ -d "$dir" ]; then
+        # Count files (not directories) in the current directory only (not recursive)
+        file_count=$(find "$dir" -maxdepth 1 -type f | wc -l)
+        # Get just the directory name (basename) for cleaner output
+        dir_name=$(basename "$dir")
+        # Print the directory name and file count
+        echo "$dir_name: $file_count files"
+    fi
+done
