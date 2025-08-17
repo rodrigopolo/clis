@@ -34,6 +34,7 @@ FILES=()
 AVC_CRF=21
 AVC_PRESET='faster'
 SKIP=0
+DEINTERLACE=0
 VERBOSE=0
 COPY_DATES=0
 COPY_TAGS=0
@@ -81,6 +82,7 @@ Options:
                               * Default: ${COLOR_TAG}
   --skip                      Skip encoding if it is already AVC and dimensions
                               are already meet
+  --deinterlace               Apply yadif deinterlacing filter
   --osufix <suffix>           Set output suffix (default: ${OUTPUT_SUFFIX})
   --isufix <suffix>           Set input suffix after encoding (default: ${ORIGINAL_SUFFIX})
   --dates                     Copy file modification dates to output
@@ -530,6 +532,7 @@ encode() {
 
     # Build video filters
     local filters=()
+    [[ $DEINTERLACE -eq 1 ]] && filters+=("yadif")
     [[ -n "$resize_filter" ]] && filters+=("$resize_filter")
     [[ -n "$rotate_filter" ]] && filters+=("$rotate_filter")
     video_filters=$([[ ${#filters[@]} -gt 0 ]] && echo "-vf '$(IFS=','; echo "${filters[*]}")'" || echo "")
@@ -697,6 +700,10 @@ parse_args() {
                 fi
                 shopt -u nocasematch
                 shift 2
+                ;;
+            --deinterlace)
+                DEINTERLACE=1
+                shift
                 ;;
             --skip)
                 SKIP=1
