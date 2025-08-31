@@ -47,6 +47,8 @@ SUCCESS_ACTION=""
 MAX_WIDTH=0
 MAX_HEIGHT=0
 FLIP_ROTATE=""
+NO_VIDEO=0
+NO_AUDIO=0
 
 
 # Helper function to convert 0/1 to Off/On
@@ -93,6 +95,10 @@ Options:
                               * Default: $(bool_to_text "$COPY_COMMENTS")
   --permissions               Copy file permissions to output
                               * Default: $(bool_to_text "$COPY_PERMISSIONS")
+  --novideo                   Exclude video stream from output (-vn)
+                              * Default: $(bool_to_text "$NO_VIDEO")
+  --noaudio                   Exclude audio stream from output (-an)
+                              * Default: $(bool_to_text "$NO_AUDIO")
 
 Arguments:
   <file1> [file2 ...]        One or more input video files to process
@@ -523,22 +529,34 @@ encode() {
         return 0
     fi
 
-    # Get audio codecs
-    audio_codecs=$(get_audio_codecs "$json_info")
+    # Get audio codecs (unless --noaudio is specified)
+    if [[ $NO_AUDIO -eq 0 ]]; then
+        audio_codecs=$(get_audio_codecs "$json_info")
+    else
+        audio_codecs="-an"
+        log "Audio disabled via --noaudio flag"
+    fi
 
     # Log encoding details
     echo "Encoding: ${input_file}" >&2
     echo "Output:   ${output_file}" >&2
 
-    # Build video filters
-    local filters=()
-    [[ $DEINTERLACE -eq 1 ]] && filters+=("yadif")
-    [[ -n "$resize_filter" ]] && filters+=("$resize_filter")
-    [[ -n "$rotate_filter" ]] && filters+=("$rotate_filter")
-    video_filters=$([[ ${#filters[@]} -gt 0 ]] && echo "-vf '$(IFS=','; echo "${filters[*]}")'" || echo "")
+    # Build video filters (unless --novideo is specified)
+    if [[ $NO_VIDEO -eq 0 ]]; then
+        local filters=()
+        [[ $DEINTERLACE -eq 1 ]] && filters+=("yadif")
+        [[ -n "$resize_filter" ]] && filters+=("$resize_filter")
+        [[ -n "$rotate_filter" ]] && filters+=("$rotate_filter")
+        video_filters=$([[ ${#filters[@]} -gt 0 ]] && echo "-vf '$(IFS=','; echo "${filters[*]}")'" || echo "")
+        video_codec="-pix_fmt yuv420p -c:v libx264 -crf $AVC_CRF -preset $AVC_PRESET"
+    else
+        video_filters=""
+        video_codec="-vn"
+        log "Video disabled via --novideo flag"
+    fi
 
     # Construct ffmpeg command
-    ffmpeg_cmd=" -hwaccel auto -y -hide_banner -i \"$input_file\" -pix_fmt yuv420p -c:v libx264 -crf $AVC_CRF -preset $AVC_PRESET $video_filters $audio_codecs -movflags +faststart \"$output_file\""
+    ffmpeg_cmd=" -hwaccel auto -y -hide_banner -i \"$input_file\" $video_codec $video_filters $audio_codecs -movflags +faststart \"$output_file\""
 
     # Log formatted command
     local formatted_cmd
@@ -723,6 +741,14 @@ parse_args() {
                 ;;
             --permissions)
                 COPY_PERMISSIONS=1
+                shift
+                ;;
+            --novideo)
+                NO_VIDEO=1
+                shift
+                ;;
+            --noaudio)
+                NO_AUDIO=1
                 shift
                 ;;
             -a|--after-encode)
