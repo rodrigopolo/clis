@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+# Script: timestamp-videos
+# Description: Add timestamp prefix to video filenames from Apple devices
+# Usage: timestamp-videos [path1] [path2] ... [pathN]
+#        If no paths provided, uses current directory
+
+set -euo pipefail
+
+# Function to display usage
+show_usage() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS] [PATH...]
+
+Add timestamp prefix to video filenames from Apple devices.
+
+Arguments:
+    PATH        One or more paths to video files or directories
+                If no path is provided, uses current directory
+
+Options:
+    -h, --help  Show this help message
+    -n, --dry-run  Show what would be renamed without actually doing it
+
+Examples:
+    $(basename "$0")                    # Process current directory
+    $(basename "$0") ~/Videos            # Process Videos directory
+    $(basename "$0") video1.mp4 video2.mov  # Process specific files
+    $(basename "$0") ~/Videos /mnt/backup    # Process multiple directories
+
+Note: Only processes .mp4 and .mov files from Apple devices.
+      Recursively processes directories.
+EOF
+}
+
+# Initialize variables
+DRY_RUN=false
+PATHS=()
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -n|--dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            show_usage
+            exit 1
+            ;;
+        *)
+            PATHS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# If no paths provided, use current directory
+if [ ${#PATHS[@]} -eq 0 ]; then
+    PATHS=(".")
+fi
+
+# Check if exiftool is installed
+if ! command -v exiftool &> /dev/null; then
+    echo "Error: exiftool is not installed or not in PATH" >&2
+    echo "Please install it using your package manager:" >&2
+    echo "  macOS: brew install exiftool" >&2
+    echo "  Ubuntu/Debian: sudo apt-get install libimage-exiftool-perl" >&2
+    echo "  Fedora: sudo dnf install perl-Image-ExifTool" >&2
+    exit 1
+fi
+
+# Function to process a path
+process_path() {
+    local path="$1"
+    
+    # Check if path exists
+    if [ ! -e "$path" ]; then
+        echo "Warning: Path does not exist: $path" >&2
+        return 1
+    fi
+    
+    # Build the exiftool command
+    local cmd=(
+        exiftool
+        -ext mp4
+        -ext mov
+    )
+    
+    # Add recursive flag only for directories
+    if [ -d "$path" ]; then
+        cmd+=(-r)
+    fi
+    
+    # Add the rest of the command
+    cmd+=(
+        -if '$make =~ /apple/i'
+    )
+    
+    # Add dry-run option if requested
+    if [ "$DRY_RUN" = true ]; then
+        cmd+=(-p '$filename would be renamed to: ')
+        cmd+=(-p)
+    else
+        cmd+=('-FileName<CreationDate')
+    fi
+    
+    cmd+=(
+        -d "%Y-%m-%d %H.%M.%S%z - %%f.%%e"
+        "$path"
+    )
+    
+    # Execute the command
+    echo "Processing: $path"
+    if [ "$DRY_RUN" = true ]; then
+        echo "Dry run mode - no files will be renamed"
+    fi
+    
+    # Run the command and capture output
+    if output=$("${cmd[@]}" 2>&1); then
+        # Parse the output for file count
+        if echo "$output" | grep -q "files unchanged"; then
+            echo "$output" | grep -E "image files (created|updated|unchanged)"
+        elif echo "$output" | grep -q "image files"; then
+            echo "$output" | grep -E "image files (created|updated|unchanged)"
+        else
+            echo "No Apple device videos found in: $path"
+        fi
+    else
+        echo "Error processing $path: $output" >&2
+        return 1
+    fi
+    
+    echo ""
+}
+
+# Main execution
+echo "=== Timestamp Video Renamer ==="
+echo ""
+
+# Process each path
+total_processed=0
+total_errors=0
+
+for path in "${PATHS[@]}"; do
+    if process_path "$path"; then
+        ((total_processed++)) || true
+    else
+        ((total_errors++)) || true
+    fi
+done
+
+# Summary
+echo "=== Summary ==="
+echo "Paths processed successfully: $total_processed"
+if [ $total_errors -gt 0 ]; then
+    echo "Paths with errors: $total_errors"
+    exit 1
+fi
+
+exit 0

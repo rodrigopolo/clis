@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# Script to convert .ogg files to AAC format while maintaining quality
+# Preserves: bitrate, metadata, and file timestamps (modified/created dates)
+# Usage: ./convert_ogg_to_aac.sh file1.ogg [file2.ogg ...]
+
+# Check if at least one argument is provided
+if [ $# -eq 0 ]; then
+    echo "Error: No input files provided"
+    echo "Usage: $0 file1.ogg [file2.ogg ...]"
+    exit 1
+fi
+
+# Check if ffmpeg is installed
+if ! command -v ffmpeg &> /dev/null; then
+    echo "Error: ffmpeg is not installed. Please install it first."
+    exit 1
+fi
+
+# Function to get bitrate from ogg file
+get_bitrate() {
+    local file="$1"
+    local bitrate
+    
+    # Try to get bitrate using mediainfo if available
+    if command -v mediainfo &> /dev/null; then
+        bitrate=$(mediainfo --Output="Audio;%BitRate%" "$file" 2>/dev/null)
+        if [ -n "$bitrate" ] && [ "$bitrate" != "0" ]; then
+            # Convert to kilobits if in bits
+            if [ "$bitrate" -gt 1000000 ]; then
+                bitrate=$((bitrate / 1000))
+            fi
+            echo "${bitrate}"
+            return
+        fi
+    fi
+    
+    # Fallback: Try ffprobe (comes with ffmpeg)
+    if command -v ffprobe &> /dev/null; then
+        bitrate=$(ffprobe -v error -select_streams a:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
+        if [ -n "$bitrate" ] && [ "$bitrate" != "N/A" ] && [ "$bitrate" != "0" ]; then
+            # Convert from bits to kilobits
+            bitrate=$((bitrate / 1000))
+            echo "${bitrate}"
+            return
+        fi
+    fi
+    
+    # If we can't determine bitrate, use a reasonable default (192k)
+    echo "192000"
+}
+
+# Process each file
+for input_file in "$@"; do
+    # Check if file exists
+    if [ ! -f "$input_file" ]; then
+        echo "Warning: File not found: $input_file"
+        echo "Skipping..."
+        continue
+    fi
+    
+    # Check if it's an .ogg file
+    if [[ ! "$input_file" =~ \.ogg$ ]]; then
+        echo "Warning: Not an .ogg file: $input_file"
+        echo "Skipping..."
+        continue
+    fi
+    
+    # Get the directory and filename without extension
+    dir=$(dirname "$input_file")
+    basename=$(basename "$input_file" .ogg)
+    
+    # Create output filename
+    output_file="${dir}/${basename}.aac.mp4"
+    
+    # Check if output file already exists
+    if [ -f "$output_file" ]; then
+        echo "Warning: Output file already exists: $output_file"
+        read -p "Overwrite? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Skipping..."
+            continue
+        fi
+    fi
+    
+    echo "Processing: $input_file"
+    
+    # Get bitrate from source file
+    bitrate=$(get_bitrate "$input_file")
+    
+    # Convert bitrate to proper format for ffmpeg (add 'k' suffix)
+    if [ "$bitrate" -gt 0 ]; then
+        bitrate_str="${bitrate}"
+        # If bitrate is in bits, convert to kilobits
+        if [ "$bitrate" -gt 1000 ]; then
+            bitrate_str="$((bitrate / 1000))k"
+        else
+            bitrate_str="${bitrate}k"
+        fi
+    else
+        bitrate_str="192k"
+    fi
+    
+    echo "  Source bitrate: $bitrate_str"
+    echo "  Output: $output_file"
+    
+    # Convert the file using ffmpeg
+    # Using -c:a aac for AAC codec
+    # Using -b:a to set bitrate
+    # Using -vn to ignore video streams (if any)
+    if ffmpeg -i "$input_file" -c:a aac -b:a "$bitrate_str" -vn -y "$output_file" 2>/dev/null; then
+        echo "  ✓ Successfully converted"
+        
+        # Optional: Copy metadata using exiftool if available
+        if command -v exiftool &> /dev/null; then
+            echo "  Copying metadata..."
+            # Copy all metadata and preserve file system dates
+            exiftool -TagsFromFile "$input_file" -all:all -overwrite_original "$output_file" 2>/dev/null
+            # Also preserve file system dates
+            exiftool -TagsFromFile "$input_file" "-FileModifyDate<FileModifyDate" \
+                    "-FileCreateDate<FileCreateDate" -overwrite_original "$output_file" 2>/dev/null
+        fi
+        
+        # Copy file timestamps (modification and access times)
+        echo "  Copying file timestamps..."
+        touch -r "$input_file" "$output_file"
+        
+        # On macOS, also try to copy creation date using SetFile if available
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            if command -v SetFile &> /dev/null && command -v GetFileInfo &> /dev/null; then
+                # Get creation date from original file and apply to new file
+                creation_date=$(GetFileInfo -d "$input_file" 2>/dev/null)
+                if [ -n "$creation_date" ]; then
+                    SetFile -d "$creation_date" "$output_file" 2>/dev/null
+                    echo "  ✓ Creation date preserved"
+                fi
+            else
+                # Alternative method using stat and touch for birth time (macOS 10.15+)
+                if stat -f "%B" "$input_file" &> /dev/null; then
+                    birth_time=$(stat -f "%B" "$input_file")
+                    # Convert epoch time to date format and set it
+                    if [ "$birth_time" != "0" ] && [ -n "$birth_time" ]; then
+                        touch -t "$(date -r "$birth_time" '+%Y%m%d%H%M.%S')" "$output_file" 2>/dev/null
+                    fi
+                fi
+            fi
+        fi
+        
+        echo "  ✓ File timestamps preserved"
+    else
+        echo "  ✗ Error converting file"
+        # Remove incomplete output file if it exists
+        [ -f "$output_file" ] && rm "$output_file"
+    fi
+    
+    echo
+done
+
+echo "Conversion complete!"
