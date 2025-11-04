@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Script to convert static images to JPG format with 80% quality
+# Preserves: metadata and file timestamps (modified/created dates)
+# Supports common formats: PNG, WebP, TIFF, BMP, GIF (static only), etc.
+# Usage: ./convert_image_to_jpg.sh file1.png [file2.webp ...]
+
+# Check if at least one argument is provided
+if [ $# -eq 0 ]; then
+    echo "Error: No input files provided"
+    echo "Usage: $0 file1.ext [file2.ext ...]"
+    exit 1
+fi
+
+# Check if magick (ImageMagick) is installed
+if ! command -v magick &> /dev/null; then
+    echo "Error: ImageMagick (magick) is not installed. Please install it first (e.g., via Homebrew: brew install imagemagick)."
+    exit 1
+fi
+
+# Process each file
+for input_file in "$@"; do
+    # Check if file exists
+    if [ ! -f "$input_file" ]; then
+        echo "Warning: File not found: $input_file"
+        echo "Skipping..."
+        continue
+    fi
+    
+    # Get the directory and filename without extension
+    dir=$(dirname "$input_file")
+    basename=$(basename "$input_file")
+    extension="${basename##*.}"
+    basename="${basename%.*}"
+    
+    # Skip if already .jpg or .jpeg
+    if [[ "$extension" == "jpg" || "$extension" == "jpeg" ]]; then
+        echo "Warning: Already a JPG file: $input_file"
+        echo "Skipping..."
+        continue
+    fi
+    
+    # Create output filename
+    output_file="${dir}/${basename}.jpg"
+    
+    # Check if output file already exists
+    if [ -f "$output_file" ]; then
+        echo "Warning: Output file already exists: $output_file"
+        read -p "Overwrite? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Skipping..."
+            continue
+        fi
+    fi
+    
+    echo "Processing: $input_file"
+    
+    echo "  Output: $output_file"
+    
+    # Convert the file using magick (ImageMagick)
+    # Using -quality 80 for JPG compression
+    # Using -strip to remove unnecessary metadata initially, then copy from source
+    if magick "$input_file" -quality 80 -strip "$output_file" 2>/dev/null; then
+        echo "  ✓ Successfully converted"
+        
+        # Copy metadata using exiftool if available
+        if command -v exiftool &> /dev/null; then
+            echo "  Copying metadata..."
+            # Copy all metadata from original to output
+            exiftool -TagsFromFile "$input_file" -all:all -overwrite_original "$output_file" 2>/dev/null
+        fi
+        
+        # Copy file timestamps (modification and access times)
+        echo "  Copying file timestamps..."
+        touch -r "$input_file" "$output_file"
+        
+        # On macOS, also try to copy creation date using SetFile if available
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            if command -v SetFile &> /dev/null && command -v GetFileInfo &> /dev/null; then
+                # Get creation date from original file and apply to new file
+                creation_date=$(GetFileInfo -d "$input_file" 2>/dev/null)
+                if [ -n "$creation_date" ]; then
+                    SetFile -d "$creation_date" "$output_file" 2>/dev/null
+                    echo "  ✓ Creation date preserved"
+                fi
+            else
+                # Alternative method using stat and touch for birth time (macOS 10.15+)
+                if stat -f "%B" "$input_file" &> /dev/null; then
+                    birth_time=$(stat -f "%B" "$input_file")
+                    # Convert epoch time to date format and set it
+                    if [ "$birth_time" != "0" ] && [ -n "$birth_time" ]; then
+                        touch -t "$(date -r "$birth_time" '+%Y%m%d%H%M.%S')" "$output_file" 2>/dev/null
+                    fi
+                fi
+            fi
+        fi
+        
+        echo "  ✓ File timestamps preserved"
+    else
+        echo "  ✗ Error converting file"
+        # Remove incomplete output file if it exists
+        [ -f "$output_file" ] && rm "$output_file"
+    fi
+    
+    echo
+done
+
+echo "Conversion complete!"
+
