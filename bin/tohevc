@@ -72,7 +72,7 @@ Options:
   -s, --size <width>x<height> Set maximum video dimensions
                               (e.g., 3840x2160; default: ${MAX_WIDTH}x${MAX_HEIGHT})
   -c, --crf <val>             Set HEVC CRF value
-                              20-28, default: ${HEVC_CRF}
+                              15-28, default: ${HEVC_CRF}
   -p, --preset <preset>       Set HEVC preset
                               ultrafast, superfast, veryfast, faster, fast,
                               medium, slow, slower, veryslow
@@ -614,7 +614,7 @@ parse_args() {
                     exit 1
                 fi
                 HEVC_CRF="$2"
-                if [[ ! "$HEVC_CRF" =~ ^[0-9]+$ ]] || [[ "$HEVC_CRF" -lt 20 ]] || [[ "$HEVC_CRF" -gt 28 ]]; then
+                if [[ ! "$HEVC_CRF" =~ ^[0-9]+$ ]] || [[ "$HEVC_CRF" -lt 15 ]] || [[ "$HEVC_CRF" -gt 28 ]]; then
                     usage
                     error "CRF must be between 20 and 28"
                     exit 1
