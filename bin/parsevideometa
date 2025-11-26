@@ -1,0 +1,381 @@
+#!/usr/bin/env python3
+"""
+Video Metadata Parser
+Extracts and displays encoding history and source file information from video files.
+
+For Adobe-produced files (After Effects, Premiere Pro, etc.):
+- Shows complete encoding history with timestamps and software used
+- Lists all source files with time ranges and usage information
+- Displays Pantry metadata (processing history of source files)
+
+For other encoders (FFmpeg, etc.):
+- Shows encoder information, codecs, and bitrate
+- Displays file modification dates
+
+Usage:
+    python3 parse_video_metadata.py <video_file>
+
+Requirements:
+    - exiftool must be installed and available in PATH
+"""
+
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+
+
+def get_metadata(file_path: str) -> Dict[str, Any]:
+    """Extract metadata from video file using exiftool."""
+    try:
+        result = subprocess.run(
+            ['exiftool', '-json', '-a', '-u', file_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        metadata = json.loads(result.stdout)
+        return metadata[0] if metadata else {}
+    except subprocess.CalledProcessError as e:
+        print(f"Error running exiftool: {e}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing exiftool output: {e}", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print("Error: exiftool not found. Please install it first.", file=sys.stderr)
+        sys.exit(1)
+
+
+def parse_adobe_history(metadata: Dict[str, Any]) -> Optional[List[Dict[str, str]]]:
+    """Parse Adobe XMP history metadata."""
+    history_entries = []
+
+    # Get history fields
+    actions = metadata.get('HistoryAction')
+    when = metadata.get('HistoryWhen')
+    software = metadata.get('HistorySoftwareAgent')
+    changed = metadata.get('HistoryChanged')
+    instance_ids = metadata.get('HistoryInstanceID')
+
+    if not actions:
+        return None
+
+    # Convert single values to lists for consistent handling
+    if isinstance(actions, str):
+        actions = [actions]
+    if isinstance(when, str):
+        when = [when]
+    if isinstance(software, str):
+        software = [software]
+    if isinstance(changed, str):
+        changed = [changed]
+    if isinstance(instance_ids, str):
+        instance_ids = [instance_ids]
+
+    # Combine into history entries
+    for i, action in enumerate(actions):
+        entry = {
+            'action': action,
+            'when': when[i] if when and i < len(when) else 'Unknown',
+            'software': software[i] if software and i < len(software) else 'Unknown',
+            'changed': changed[i] if changed and i < len(changed) else 'N/A',
+            'instance_id': instance_ids[i] if instance_ids and i < len(instance_ids) else 'N/A'
+        }
+        history_entries.append(entry)
+
+    return history_entries
+
+
+def parse_pantry_metadata(metadata: Dict[str, Any]) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Parse Pantry metadata (metadata about source files)."""
+    # Pantry metadata contains history about specific source files
+    # It's organized by file path
+    pantry_by_file = {}
+
+    # Get Pantry file path(s)
+    pantry_file_paths = metadata.get('PantryIngredientsFilePath')
+    if not pantry_file_paths:
+        return None
+
+    # Convert to list if single value
+    if isinstance(pantry_file_paths, str):
+        pantry_file_paths = [pantry_file_paths]
+
+    # Get Pantry metadata fields
+    pantry_actions = metadata.get('PantryHistoryAction')
+    pantry_when = metadata.get('PantryHistoryWhen')
+    pantry_software = metadata.get('PantryHistorySoftwareAgent')
+    pantry_changed = metadata.get('PantryHistoryChanged')
+    pantry_creator_tool = metadata.get('PantryCreatorTool')
+
+    # Convert to lists for consistent handling
+    pantry_actions_list = pantry_actions if isinstance(pantry_actions, list) else [pantry_actions] if pantry_actions else []
+    pantry_when_list = pantry_when if isinstance(pantry_when, list) else [pantry_when] if pantry_when else []
+    pantry_software_list = pantry_software if isinstance(pantry_software, list) else [pantry_software] if pantry_software else []
+    pantry_changed_list = pantry_changed if isinstance(pantry_changed, list) else [pantry_changed] if pantry_changed else []
+    pantry_creator_tool_list = pantry_creator_tool if isinstance(pantry_creator_tool, list) else [pantry_creator_tool] if pantry_creator_tool else []
+
+    # Build pantry data indexed by file path
+    for i, file_path in enumerate(pantry_file_paths):
+        pantry_by_file[file_path] = {
+            'creator_tool': pantry_creator_tool_list[i] if i < len(pantry_creator_tool_list) else pantry_creator_tool_list[0] if pantry_creator_tool_list else None,
+            'history': {
+                'action': pantry_actions_list[i] if i < len(pantry_actions_list) else pantry_actions_list[0] if pantry_actions_list else None,
+                'when': pantry_when_list[i] if i < len(pantry_when_list) else pantry_when_list[0] if pantry_when_list else None,
+                'software': pantry_software_list[i] if i < len(pantry_software_list) else pantry_software_list[0] if pantry_software_list else None,
+                'changed': pantry_changed_list[i] if i < len(pantry_changed_list) else pantry_changed_list[0] if pantry_changed_list else None,
+            }
+        }
+
+    return pantry_by_file if pantry_by_file else None
+
+
+def parse_adobe_ingredients(metadata: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Parse Adobe XMP ingredients (source files) metadata."""
+    ingredients = []
+
+    # Get ingredients fields
+    file_paths = metadata.get('IngredientsFilePath')
+    instance_ids = metadata.get('IngredientsInstanceID')
+    document_ids = metadata.get('IngredientsDocumentID')
+    from_parts = metadata.get('IngredientsFromPart')
+    to_parts = metadata.get('IngredientsToPart')
+
+    if not file_paths:
+        return None
+
+    # Convert single values to lists
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+    if isinstance(instance_ids, str):
+        instance_ids = [instance_ids]
+    if isinstance(document_ids, str):
+        document_ids = [document_ids]
+    if isinstance(from_parts, str):
+        from_parts = [from_parts]
+    if isinstance(to_parts, str):
+        to_parts = [to_parts]
+
+    # Combine into ingredients entries
+    for i, file_path in enumerate(file_paths):
+        ingredient = {
+            'file_path': file_path,
+            'instance_id': instance_ids[i] if instance_ids and i < len(instance_ids) else 'N/A',
+            'document_id': document_ids[i] if document_ids and i < len(document_ids) else 'N/A',
+            'from_part': from_parts[i] if from_parts and i < len(from_parts) else 'N/A',
+            'to_part': to_parts[i] if to_parts and i < len(to_parts) else 'N/A'
+        }
+        ingredients.append(ingredient)
+
+    return ingredients
+
+
+def parse_simple_encoder(metadata: Dict[str, Any]) -> Optional[str]:
+    """Extract encoder information from non-Adobe files."""
+    # Try various encoder fields
+    encoder_fields = [
+        'Encoder',
+        'CompressorName',
+        'CreatorTool',
+        'Software',
+    ]
+
+    encoders = []
+    for field in encoder_fields:
+        value = metadata.get(field)
+        if value and value not in encoders:
+            encoders.append(value)
+
+    return ', '.join(encoders) if encoders else None
+
+
+def format_time_range(from_part: str, to_part: str) -> str:
+    """Format time range from Adobe time notation."""
+    # Adobe uses format like: time:123456789f254016000000d987654321f254016000000
+    # This is a simplified display - full parsing would be complex
+    if from_part == 'N/A' or to_part == 'N/A':
+        return 'Full duration'
+
+    # Just indicate if it's a partial clip or full
+    if from_part.startswith('time:0d') and 'd' in to_part:
+        return 'Full duration'
+    elif from_part.startswith('time:') and to_part.startswith('time:'):
+        return 'Partial clip (time range specified)'
+    else:
+        return 'Time range specified'
+
+
+def print_report(file_path: str, metadata: Dict[str, Any]) -> None:
+    """Print a formatted report of the video metadata."""
+    print("=" * 80)
+    print(f"VIDEO METADATA REPORT")
+    print("=" * 80)
+    print(f"\nFile: {metadata.get('FileName', file_path)}")
+    print(f"Size: {metadata.get('FileSize', 'Unknown')}")
+    print(f"Duration: {metadata.get('Duration', 'Unknown')}")
+    print(f"Resolution: {metadata.get('ImageWidth', 'Unknown')}x{metadata.get('ImageHeight', 'Unknown')}")
+    print(f"Frame Rate: {metadata.get('VideoFrameRate', 'Unknown')}")
+
+    # Check for Adobe creator tool
+    creator_tool = metadata.get('CreatorTool')
+
+    if creator_tool and 'Adobe' in creator_tool:
+        print(f"\nPrimary Creator Tool: {creator_tool}")
+
+        # Print encoding history
+        history = parse_adobe_history(metadata)
+        if history:
+            print("\n" + "-" * 80)
+            print("ENCODING HISTORY")
+            print("-" * 80)
+            for i, entry in enumerate(history, 1):
+                print(f"\n{i}. {entry['action'].upper()}")
+                print(f"   When: {entry['when']}")
+                print(f"   Software: {entry['software']}")
+                if entry['changed'] != 'N/A' and entry['changed'] != '/':
+                    print(f"   Changed: {entry['changed']}")
+
+        # Print source files (ingredients)
+        ingredients = parse_adobe_ingredients(metadata)
+        pantry_data = parse_pantry_metadata(metadata)
+
+        if ingredients:
+            print("\n" + "-" * 80)
+            print(f"SOURCE FILES ({len(ingredients)} total)")
+            print("-" * 80)
+
+            # Group by unique file paths to avoid repetition
+            unique_files = {}
+            for ingredient in ingredients:
+                file_path = ingredient['file_path']
+                if file_path not in unique_files:
+                    unique_files[file_path] = []
+                unique_files[file_path].append(ingredient)
+
+            for i, (file_path, occurrences) in enumerate(unique_files.items(), 1):
+                print(f"\n{i}. {file_path}")
+                print(f"   Used: {len(occurrences)} time(s) in the composition")
+
+                # Show first occurrence details
+                first = occurrences[0]
+                print(f"   Instance ID: {first['instance_id']}")
+                print(f"   Document ID: {first['document_id']}")
+                print(f"   Time Range: {format_time_range(first['from_part'], first['to_part'])}")
+
+                # If used multiple times, show summary
+                if len(occurrences) > 1:
+                    print(f"   Note: This file appears {len(occurrences)} times with different time ranges")
+
+                # Show Pantry metadata if available for this file
+                if pantry_data and file_path in pantry_data:
+                    pantry_info = pantry_data[file_path]
+
+                    # Show creator tool if available
+                    if pantry_info.get('creator_tool'):
+                        print(f"   Original Creator Tool: {pantry_info['creator_tool']}")
+
+                    # Show history if available
+                    history = pantry_info.get('history', {})
+                    if history.get('action'):
+                        print(f"   Source File History:")
+                        print(f"      Action: {history['action']}")
+                        if history.get('software'):
+                            print(f"      Software: {history['software']}")
+                        if history.get('when'):
+                            print(f"      When: {history['when']}")
+                        if history.get('changed') and history['changed'] not in ('N/A', '/'):
+                            print(f"      Changed: {history['changed']}")
+
+        # Show Pantry metadata for files that are not direct ingredients
+        if pantry_data:
+            # Find pantry files that are not in the ingredients list
+            ingredient_files = set(unique_files.keys())
+            pantry_only_files = {fp: data for fp, data in pantry_data.items() if fp not in ingredient_files}
+
+            if pantry_only_files:
+                print("\n" + "-" * 80)
+                print(f"ADDITIONAL SOURCE FILES WITH PROCESSING HISTORY ({len(pantry_only_files)} total)")
+                print("-" * 80)
+                print("These files were used to create some of the source files above:")
+
+                for i, (file_path, pantry_info) in enumerate(pantry_only_files.items(), 1):
+                    print(f"\n{i}. {file_path}")
+                    if pantry_info.get('creator_tool'):
+                        print(f"   Created with: {pantry_info['creator_tool']}")
+
+                    history = pantry_info.get('history', {})
+                    if history.get('action'):
+                        print(f"   Processing History:")
+                        print(f"      Action: {history['action']}")
+                        if history.get('software'):
+                            print(f"      Software: {history['software']}")
+                        if history.get('when'):
+                            print(f"      When: {history['when']}")
+                        if history.get('changed') and history['changed'] not in ('N/A', '/'):
+                            print(f"      Changed: {history['changed']}")
+
+    else:
+        # Simple encoder info for non-Adobe files
+        print("\n" + "-" * 80)
+        print("ENCODER INFORMATION")
+        print("-" * 80)
+
+        encoder = parse_simple_encoder(metadata)
+        if encoder:
+            print(f"\nEncoded with: {encoder}")
+        else:
+            print("\nEncoder information not found in metadata.")
+
+        # Show any additional useful info (skip zero dates)
+        create_date = metadata.get('CreateDate')
+        if create_date and create_date != '0000:00:00 00:00:00':
+            print(f"Created: {create_date}")
+
+        modify_date = metadata.get('ModifyDate')
+        if modify_date and modify_date != '0000:00:00 00:00:00':
+            print(f"Modified: {modify_date}")
+
+        # If no internal dates, show filesystem date
+        if (not create_date or create_date == '0000:00:00 00:00:00') and \
+           (not modify_date or modify_date == '0000:00:00 00:00:00'):
+            file_modify = metadata.get('FileModifyDate')
+            if file_modify:
+                print(f"File Modified: {file_modify} (filesystem)")
+
+        # Show additional technical details
+        compressor = metadata.get('CompressorID')
+        if compressor:
+            print(f"Video Codec: {compressor}")
+
+        audio_format = metadata.get('AudioFormat')
+        if audio_format:
+            print(f"Audio Codec: {audio_format}")
+
+        bitrate = metadata.get('AvgBitrate')
+        if bitrate:
+            print(f"Average Bitrate: {bitrate}")
+
+    print("\n" + "=" * 80)
+
+
+def main():
+    """Main entry point."""
+    if len(sys.argv) < 2:
+        script_name = os.path.basename(sys.argv[0])
+        print(f"Usage: {script_name} <video_file>")
+        print("\nExample:")
+        print(f"  {script_name} video.mov")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+
+    print(f"Extracting metadata from: {file_path}\n")
+    metadata = get_metadata(file_path)
+    print_report(file_path, metadata)
+
+
+if __name__ == '__main__':
+    main()
