@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""
+Rename ASIAir preview, light, and calibration files to a more readable format.
+
+Examples:
+  Preview files:
+    Input:  Preview_Jupiter_30.0s_Bin1_ISO800_20251122-014841_29.0C.fit
+    Output: 2025-11-22 01.48.41 - Jupiter 30.0s ISO800 29.0C.fit
+
+  Light files:
+    Input:  Light_M31_180.0s_Bin1_2600MC_gain100_20240902-223143_-10.0C_0001.fit
+    Output: 2024-09-02 22.31.43 - M31 180.0s Bin1 2600MC gain100 -10.0C 0001.fit
+
+    Input:  Light_Mars_5.0s_Bin1_ISO4000_20250311-224944_32.0C_0001.fit
+    Output: 2025-03-11 22.49.44 - Mars 5.0s Bin1 ISO4000 32.0C 0001.fit
+
+  Calibration files:
+    Input:  Dark_15.0s_Bin1_20241025-030254_0001.fit
+    Output: 2024-10-25 03.02.54 - Dark 15.0s Bin1 0001.fit
+
+    Input:  Bias_15.0s_Bin1_ISO800_20250113-013450_29.0C_0001.fit
+    Output: 2025-01-13 01.34.50 - Bias 15.0s Bin1 ISO800 29.0C 0001.fit
+"""
+
+import argparse
+import os
+import re
+import sys
+
+
+def parse_filename(filename):
+    """
+    Parse ASIAir filename and extract components.
+
+    Supports:
+      - Preview files: Preview_{target}_{exposure}s_Bin{bin}_{iso}_{date}-{time}_{temp}C.fit
+      - Light files (camera+gain): Light_{target}_{exposure}_Bin{bin}_{camera}_gain{gain}_{date}-{time}_{temp}C_{number}.fit
+      - Light files (ISO): Light_{target}_{exposure}_Bin{bin}_ISO{iso}_{date}-{time}_{temp}C_{number}.fit
+      - Calibration files: {Type}_{exposure}_Bin{bin}_{date}-{time}_{number}.fit
+      - Calibration with ISO/temp: {Type}_{exposure}_Bin{bin}_ISO{iso}_{date}-{time}_{temp}C_{number}.fit
+    """
+    # Try Preview pattern first (no frame number)
+    preview_pattern = r'Preview_(.+?)_([\d.]+s)_Bin\d+_(\w+)_(\d{8})-(\d{6})_(-?[\d.]+C)\.fit'
+    match = re.match(preview_pattern, filename)
+
+    if match:
+        target, exposure, iso, date, time, temp = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {target} {exposure} {iso} {temp}.fit"
+        return new_filename
+
+    # Try Light pattern with camera+gain
+    light_gain_pattern = r'Light_(.+?)_([\d.]+(?:s|ms))_Bin(\d+)_(\w+)_gain(\d+)_(\d{8})-(\d{6})_(-?[\d.]+C)_(\d{4})\.fit'
+    match = re.match(light_gain_pattern, filename)
+
+    if match:
+        target, exposure, bin_mode, camera, gain, date, time, temp, number = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {target} {exposure} Bin{bin_mode} {camera} gain{gain} {temp} {number}.fit"
+        return new_filename
+
+    # Try Light pattern with ISO/temp
+    light_iso_pattern = r'Light_(.+?)_([\d.]+(?:s|ms))_Bin(\d+)_ISO(\d+)_(\d{8})-(\d{6})_(-?[\d.]+C)_(\d{4})\.fit'
+    match = re.match(light_iso_pattern, filename)
+
+    if match:
+        target, exposure, bin_mode, iso, date, time, temp, number = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {target} {exposure} Bin{bin_mode} ISO{iso} {temp} {number}.fit"
+        return new_filename
+
+    # Try simple Light pattern (no ISO/temp)
+    light_simple_pattern = r'Light_(.+?)_([\d.]+(?:s|ms))_Bin(\d+)_(\d{8})-(\d{6})_(\d{4})\.fit'
+    match = re.match(light_simple_pattern, filename)
+
+    if match:
+        target, exposure, bin_mode, date, time, number = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {target} {exposure} Bin{bin_mode} {number}.fit"
+        return new_filename
+
+    # Try calibration pattern with ISO/temp
+    calib_iso_pattern = r'(Bias|Dark|Flat)_([\d.]+(?:s|ms))_Bin(\d+)_ISO(\d+)_(\d{8})-(\d{6})_(-?[\d.]+C)_(\d{4})\.fit'
+    match = re.match(calib_iso_pattern, filename)
+
+    if match:
+        cal_type, exposure, bin_mode, iso, date, time, temp, number = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {cal_type} {exposure} Bin{bin_mode} ISO{iso} {temp} {number}.fit"
+        return new_filename
+
+    # Try simple calibration pattern (no ISO/temp)
+    calib_simple_pattern = r'(Bias|Dark|Flat)_([\d.]+(?:s|ms))_Bin(\d+)_(\d{8})-(\d{6})_(\d{4})\.fit'
+    match = re.match(calib_simple_pattern, filename)
+
+    if match:
+        cal_type, exposure, bin_mode, date, time, number = match.groups()
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        formatted_time = f"{time[:2]}.{time[2:4]}.{time[4:6]}"
+        new_filename = f"{formatted_date} {formatted_time} - {cal_type} {exposure} Bin{bin_mode} {number}.fit"
+        return new_filename
+
+    return None
+
+
+def rename_file(filepath, dry_run=False):
+    """
+    Rename a single file.
+
+    Args:
+        filepath: Path to the file to rename
+        dry_run: If True, only show what would be done without actually renaming
+    """
+    directory = os.path.dirname(filepath) or '.'
+    filename = os.path.basename(filepath)
+
+    new_filename = parse_filename(filename)
+
+    if new_filename is None:
+        print(f"ERROR: Could not parse filename: {filename}", file=sys.stderr)
+        return False
+
+    new_filepath = os.path.join(directory, new_filename)
+
+    if dry_run:
+        print(f"Would rename: {filename}")
+        print(f"         to: {new_filename}")
+    else:
+        try:
+            os.rename(filepath, new_filepath)
+            print(f"Renamed: {filename}")
+            print(f"     to: {new_filename}")
+        except OSError as e:
+            print(f"ERROR: Failed to rename {filename}: {e}", file=sys.stderr)
+            return False
+
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Rename ASIAir preview, light, and calibration files to a more readable format.',
+        epilog='Examples: %(prog)s *.fit  OR  %(prog)s Light_*.fit Dark_*.fit'
+    )
+    parser.add_argument(
+        'files',
+        nargs='+',
+        help='One or more files to rename'
+    )
+    parser.add_argument(
+        '-n', '--dry-run',
+        action='store_true',
+        help='Show what would be done without actually renaming files'
+    )
+
+    args = parser.parse_args()
+
+    success_count = 0
+    fail_count = 0
+
+    for filepath in args.files:
+        if not os.path.exists(filepath):
+            print(f"ERROR: File not found: {filepath}", file=sys.stderr)
+            fail_count += 1
+            continue
+
+        if rename_file(filepath, args.dry_run):
+            success_count += 1
+        else:
+            fail_count += 1
+
+    print(f"\nTotal: {success_count} renamed, {fail_count} failed")
+
+    return 0 if fail_count == 0 else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
