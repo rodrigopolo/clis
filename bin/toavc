@@ -614,9 +614,9 @@ parse_args() {
                     exit 1
                 fi
                 AVC_CRF="$2"
-                if [[ ! "$AVC_CRF" =~ ^[0-9]+$ ]] || [[ "$AVC_CRF" -lt 20 ]] || [[ "$AVC_CRF" -gt 28 ]]; then
+                if [[ ! "$AVC_CRF" =~ ^[0-9]+$ ]] || [[ "$AVC_CRF" -lt 18 ]] || [[ "$AVC_CRF" -gt 28 ]]; then
                     usage
-                    error "CRF must be between 20 and 28"
+                    error "CRF must be between 18 and 28"
                     exit 1
                 fi
                 shift 2
