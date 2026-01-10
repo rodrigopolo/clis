@@ -22,6 +22,6 @@ if [ -z "$1" ]; then
 else
 	yt-dlp \
 	-f "bestvideo[height<=2160]+bestaudio/best" \
-	-o "%(upload_date>%Y-%m-%d)s-%(title)s-%(id)s.%(ext)s"
+	-o "%(upload_date>%Y-%m-%d)s-%(uploader)s-%(title)s-%(id)s.%(ext)s" \
 	"$@"
 fi
