@@ -1,52 +1,53 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
 #
 # Set the lat, lon of an image file with exiftool
 # Copyright (c) 2025 Rodrigo Polo - rodrigopolo.com - The MIT License (MIT)
 #
 
-# Modifying the internal field separator
-IFS=$'\t\n'
+import sys
+import subprocess
 
-# Check if the correct number of arguments are provided
-if [ "$#" -lt 3 ]; then
-	echo "Usage: $(basename "$0") <latitude> <longitude> <filename1> [<filename2> ...]"
-	exit 1
-fi
+def dd_to_dms(decimal):
+    """Convert decimal degrees to (degrees, minutes, seconds) with full precision."""
+    absolute = abs(decimal)
+    degrees = int(absolute)
+    minutes_float = (absolute - degrees) * 60
+    minutes = int(minutes_float)
+    seconds = (minutes_float - minutes) * 60
+    return degrees, minutes, seconds
 
-# Assign arguments to variables and remove commas
-latitude=$(echo "$1" | tr -d ',')
-longitude=$(echo "$2" | tr -d ',')
-shift 2  # Remove the first two arguments from the list
+def main():
+    if len(sys.argv) < 4:
+        script = sys.argv[0].split("/")[-1]
+        print(f"Usage: {script} <latitude> <longitude> <filename1> [<filename2> ...]")
+        sys.exit(1)
 
-# Convert latitude and longitude to degrees, minutes, and seconds format
-lat_deg=$(echo "$latitude" | cut -d '.' -f 1)
-lat_min=$(echo "scale=6; (${latitude} - ${lat_deg}) * 60" | bc | cut -d '.' -f 1)
-lat_sec=$(echo "scale=6; (${latitude} - ${lat_min}/60 - ${lat_deg}) * 3600" | bc | cut -d '.' -f 1)
+    latitude  = float(sys.argv[1].replace(",", ""))
+    longitude = float(sys.argv[2].replace(",", ""))
+    filenames = sys.argv[3:]
 
-long_deg=$(echo "$longitude" | cut -d '.' -f 1)
-long_min=$(echo "scale=6; (${longitude} - ${long_deg}) * 60" | bc | cut -d '.' -f 1)
-long_sec=$(echo "scale=6; (${longitude} - ${long_min}/60 - ${long_deg}) * 3600" | bc | cut -d '.' -f 1)
+    lat_ref  = "North" if latitude  >= 0 else "South"
+    long_ref = "East"  if longitude >= 0 else "West"
 
-# Set the appropriate reference directions
-if (( $(echo "$latitude >= 0" | bc -l) )); then
-	lat_ref="North"
-else
-	lat_ref="South"
-fi
+    lat_d,  lat_m,  lat_s  = dd_to_dms(latitude)
+    long_d, long_m, long_s = dd_to_dms(longitude)
 
-if (( $(echo "$longitude >= 0" | bc -l) )); then
-	long_ref="East"
-else
-	long_ref="West"
-fi
+    lat_dms  = f"{lat_d} {lat_m} {lat_s}"
+    long_dms = f"{long_d} {long_m} {long_s}"
 
-# Loop through all filenames
-for filename in "$@"; do
-	# Use ExifTool to set GPS coordinates
-	exiftool -overwrite_original \
-		-GPSLatitude="$lat_deg $lat_min $lat_sec" -GPSLatitudeRef="$lat_ref" \
-		-GPSLongitude="$long_deg $long_min $long_sec" -GPSLongitudeRef="$long_ref" "$filename"
+    for filename in filenames:
+        result = subprocess.run([
+            "exiftool", "-overwrite_original",
+            f"-GPSLatitude={lat_dms}",   f"-GPSLatitudeRef={lat_ref}",
+            f"-GPSLongitude={long_dms}", f"-GPSLongitudeRef={long_ref}",
+            filename
+        ], capture_output=True, text=True)
 
-	echo "GPS coordinates set for $filename"
-done
+        if result.returncode == 0:
+            print(f"GPS coordinates set for {filename}")
+        else:
+            print(f"Error processing {filename}: {result.stderr.strip()}", file=sys.stderr)
+
+if __name__ == "__main__":
+    main()

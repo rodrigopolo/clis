@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""
+setpicdate - Set EXIF/IPTC/XMP date metadata on JPEG images using exiftool.
+
+Usage:
+    setpicdate "<datetime>" image.jpg [image2.jpg ...]
+
+Accepted datetime formats:
+    2026:02:17 19:17:12-06:00
+    2026:02:17 19:17:12
+    2026-02-17 19:17:12
+    2026-02-17 19.17.12
+"""
+
+import re
+import subprocess
+import sys
+from datetime import timezone, timedelta
+
+# ─── configuration ────────────────────────────────────────────────────────────
+
+DEFAULT_OFFSET = "-06:00"
+
+# ─── helpers ──────────────────────────────────────────────────────────────────
+
+def die(msg: str) -> None:
+    print(f"Error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def usage() -> None:
+    print(__doc__)
+    sys.exit(1)
+
+
+def parse_datetime(raw: str) -> tuple[str, str, str]:
+    """
+    Parse the input string and return (date_part, time_part, offset).
+
+    date_part : YYYY:MM:DD
+    time_part : HH:MM:SS
+    offset    : ±HH:MM
+    """
+    # Extract trailing offset if present
+    offset_match = re.search(r"([+-]\d{2}:\d{2})$", raw)
+    if offset_match:
+        offset = offset_match.group(1)
+        raw = raw[: offset_match.start()]
+    else:
+        offset = DEFAULT_OFFSET
+
+    raw = raw.strip()
+
+    # Match date and time, allowing - or : as date sep, and . or : as time sep
+    pattern = re.compile(
+        r"^(\d{4})[-:](\d{2})[-:](\d{2})"   # date
+        r"[T ]"                               # separator
+        r"(\d{2})[.:](\d{2})[.:](\d{2})$"   # time
+    )
+    m = pattern.match(raw)
+    if not m:
+        die(f"Could not parse datetime: {raw!r}")
+
+    yr, mo, dy, hh, mi, ss = m.groups()
+    date_part = f"{yr}:{mo}:{dy}"
+    time_part = f"{hh}:{mi}:{ss}"
+
+    return date_part, time_part, offset
+
+
+# ─── main ─────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    if len(sys.argv) < 3:
+        usage()
+
+    raw_input = sys.argv[1]
+    images = sys.argv[2:]
+
+    date_part, time_part, offset = parse_datetime(raw_input)
+
+    dt_plain  = f"{date_part} {time_part}"            # 2026:02:17 19:17:12
+    dt_offset = f"{date_part} {time_part}{offset}"    # 2026:02:17 19:17:12-06:00
+    time_off  = f"{time_part}{offset}"                # 19:17:12-06:00
+    dt_subsec = f"{date_part} {time_part}.00{offset}" # 2026:02:17 19:17:12.00-06:00
+
+    print(f"Setting date : {dt_offset}")
+    print(f"Files        : {', '.join(images)}")
+    print()
+
+    cmd = [
+        "exiftool",
+        f"-DateTimeOriginal={dt_plain}",
+        f"-CreateDate={dt_plain}",
+        f"-FileModifyDate={dt_offset}",
+        f"-ModifyDate={dt_plain}",
+        f"-OffsetTime={offset}",
+        f"-OffsetTimeOriginal={offset}",
+        f"-OffsetTimeDigitized={offset}",
+        f"-IPTC:DigitalCreationDate={date_part}",
+        f"-IPTC:TimeCreated={time_off}",
+        f"-IPTC:DigitalCreationTime={time_off}",
+        f"-XMP:DateCreated={dt_subsec}",
+        "-overwrite_original",
+        *images,
+    ]
+
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        die("exiftool exited with an error.")
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
