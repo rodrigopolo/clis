@@ -35,6 +35,10 @@
 			"autoLoad": true,
 			"type": "multires",
 			"preview": "./1/f_0_0.jpg",
+			"minHfov": 10,
+			"maxHfov": 140,
+			"hfov": 90,
+			"multiResMinHfov": true,
 			"multiRes": {
 				"basePath": "./",
 				"path": "/%l/%s_%y_%x",
@@ -44,7 +48,7 @@
 				"maxLevel": ${MAXLEVEL},
 				"cubeResolution": ${CUBERES}
 			},
-			domid: "pano",
+			domid: "pano"
 		}
 		pannellum.viewer(panorama.domid, panorama);
 	</script>
