@@ -15,7 +15,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 # Side names and cube dimensions (immutable arrays)
-readonly sides=("Left" "Front" "Right" "Back" "Up" "Down")
+readonly sides=("l" "f" "r" "b" "u" "d")
 readonly sides_short=("l" "f" "r" "b" "u" "d")
 readonly cubes=(16384 8192 4096 2048 1024 512)
 
@@ -183,7 +183,7 @@ main() {
 
     # Convert to cubemap
     log "Converting to cubemap"
-    "$script_dir/kubi.sh" "$input_file"
+    "$script_dir/tocubemap.py" "$input_file"
 
     # Get cube dimensions
     local cubesize
