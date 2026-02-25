@@ -165,19 +165,23 @@ def equirect_to_face(img_np: np.ndarray, face: str, size: int) -> Image.Image:
 
 def save_tiles(face_img: Image.Image, face: str, level_idx: int,
                level_size: int, out_dir: str) -> None:
-    """Resize face_img to level_size and write 512×512 JPEG tiles."""
+    """Resize face_img to level_size and write JPEG tiles (512×512 or smaller at edges)."""
     if face_img.width != level_size:
         resized = face_img.resize((level_size, level_size), Image.LANCZOS)
     else:
         resized = face_img
 
-    n = level_size // TILE_SIZE   # tiles per row / column
-    for row in range(n):
+    n_full = level_size // TILE_SIZE
+    n_total = n_full + (1 if level_size % TILE_SIZE else 0)
+    for row in range(n_total):
         row_dir = os.path.join(out_dir, face, f"l{level_idx}", f"{row + 1:02d}")
         os.makedirs(row_dir, exist_ok=True)
-        for col in range(n):
-            tile = resized.crop((col * TILE_SIZE, row * TILE_SIZE,
-                                 (col + 1) * TILE_SIZE, (row + 1) * TILE_SIZE))
+        y0 = row * TILE_SIZE
+        y1 = min(y0 + TILE_SIZE, level_size)
+        for col in range(n_total):
+            x0 = col * TILE_SIZE
+            x1 = min(x0 + TILE_SIZE, level_size)
+            tile = resized.crop((x0, y0, x1, y1))
             fname = f"l{level_idx}_{face}_{row + 1:02d}_{col + 1:02d}.jpg"
             tile.save(os.path.join(row_dir, fname), "JPEG", quality=JPEG_QUALITY)
 
@@ -303,8 +307,9 @@ def process_image(img_path: str) -> bool:
         print("done")
 
         for li, size in enumerate(level_sizes, start=1):
-            n = size // TILE_SIZE
-            print(f"  [{face}] l{li} ({size} px, {n}×{n} tiles) … ", end='', flush=True)
+            n_full = size // TILE_SIZE
+            n_total = n_full + (1 if size % TILE_SIZE else 0)
+            print(f"  [{face}] l{li} ({size} px, {n_total}×{n_total} tiles) … ", end='', flush=True)
             save_tiles(face_img, face, li, size, out_dir)
             print("done")
 
