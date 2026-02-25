@@ -272,13 +272,13 @@ def process_image(img_path: str) -> bool:
     stem = os.path.splitext(os.path.basename(img_path))[0]
     out_dir = os.path.join(os.path.dirname(img_path), f"{stem}.tiles")
 
-    print(f"\nProcessing: {img_path}")
-    print(f"Output:     {out_dir}")
+    print(f"\nProcessing: {img_path}", file=sys.stderr)
+    print(f"Output:     {out_dir}", file=sys.stderr)
 
     # ── Load source ────────────────────────────────────────────────────────
     img = Image.open(img_path).convert('RGB')
     W, H = img.size
-    print(f"Source:     {W} × {H} px")
+    print(f"Source:     {W} × {H} px", file=sys.stderr)
 
     # ── Compute levels ─────────────────────────────────────────────────────
     level_sizes = compute_level_sizes(W)
@@ -288,8 +288,8 @@ def process_image(img_path: str) -> bool:
         return False
 
     max_size = level_sizes[-1]
-    print(f"Cube face:  {W / math.pi:.0f} px  →  max level {max_size} px")
-    print(f"Levels:     {level_sizes}")
+    print(f"Cube face:  {W / math.pi:.0f} px  →  max level {max_size} px", file=sys.stderr)
+    print(f"Levels:     {level_sizes}", file=sys.stderr)
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -302,16 +302,16 @@ def process_image(img_path: str) -> bool:
     preview_thumbs: dict[str, Image.Image] = {}  # 256×256 per face for preview
 
     for face in FACES:
-        print(f"  [{face}] projecting at {max_size} px … ", end='', flush=True)
+        print(f"  [{face}] projecting at {max_size} px … ", end='', flush=True, file=sys.stderr)
         face_img = equirect_to_face(img_np, face, max_size)
-        print("done")
+        print("done", file=sys.stderr)
 
         for li, size in enumerate(level_sizes, start=1):
             n_full = size // TILE_SIZE
             n_total = n_full + (1 if size % TILE_SIZE else 0)
-            print(f"  [{face}] l{li} ({size} px, {n_total}×{n_total} tiles) … ", end='', flush=True)
+            print(f"  [{face}] l{li} ({size} px, {n_total}×{n_total} tiles) … ", end='', flush=True, file=sys.stderr)
             save_tiles(face_img, face, li, size, out_dir)
-            print("done")
+            print("done", file=sys.stderr)
 
         # Keep a 256×256 thumbnail for preview.jpg
         preview_thumbs[face] = face_img.resize(
@@ -321,18 +321,18 @@ def process_image(img_path: str) -> bool:
     del img_np
 
     # ── preview.jpg: 256×1536 vertical strip, order l f r b u d ───────────
-    print("  Generating preview.jpg … ", end='', flush=True)
+    print("  Generating preview.jpg … ", end='', flush=True, file=sys.stderr)
     preview = Image.new('RGB', (PREVIEW_FACE_SIZE, PREVIEW_FACE_SIZE * 6))
     for i, face in enumerate(PREVIEW_FACE_ORDER):
         preview.paste(preview_thumbs[face], (0, i * PREVIEW_FACE_SIZE))
     preview.save(os.path.join(out_dir, 'preview.jpg'), 'JPEG', quality=JPEG_QUALITY)
-    print("done")
+    print("done", file=sys.stderr)
 
     # ── thumb.jpg: 240×240, front face ─────────────────────────────────────
-    print("  Generating thumb.jpg … ", end='', flush=True)
+    print("  Generating thumb.jpg … ", end='', flush=True, file=sys.stderr)
     thumb = preview_thumbs['f'].resize((240, 240), Image.LANCZOS)
     thumb.save(os.path.join(out_dir, 'thumb.jpg'), 'JPEG', quality=JPEG_QUALITY)
-    print("done")
+    print("done", file=sys.stderr)
 
     del preview_thumbs
 
@@ -342,19 +342,18 @@ def process_image(img_path: str) -> bool:
     # ── XML snippet ─────────────────────────────────────────────────────────
     multires = f"512,{','.join(str(s) for s in level_sizes)}"
     scene_name = f"scene_{stem.lower().replace(' ', '_').replace('-', '_')}"
-    print(f"""
---- XML snippet (paste into tour.xml) ---
-<scene name="{scene_name}" title="{stem}" onstart="" thumburl="panos/{stem}.tiles/thumb.jpg" lat="{lat}" lng="{lng}" alt="{alt}" heading="0.0">
-\t<control bouncinglimits="calc:image.cube ? true : false" />
-\t<view hlookat="0.0" vlookat="0.0" fovtype="MFOV" fov="120" maxpixelzoom="2.0" fovmin="70" fovmax="140" limitview="auto" />
-\t<preview url="panos/{stem}.tiles/preview.jpg" />
-\t<image>
-\t\t<cube url="panos/{stem}.tiles/%s/l%l/%0v/l%l_%s_%0v_%0h.jpg" multires="{multires}" />
-\t</image>
-</scene>
------------------------------------------""")
+    print("--- XML snippet (paste into tour.xml) ---", file=sys.stderr)
+    print(f'<scene name="{scene_name}" title="{stem}" onstart="" thumburl="panos/{stem}.tiles/thumb.jpg" lat="{lat}" lng="{lng}" alt="{alt}" heading="0.0">')
+    print(f'\t<control bouncinglimits="calc:image.cube ? true : false" />')
+    print(f'\t<view hlookat="0.0" vlookat="0.0" fovtype="MFOV" fov="120" maxpixelzoom="2.0" fovmin="70" fovmax="140" limitview="auto" />')
+    print(f'\t<preview url="panos/{stem}.tiles/preview.jpg" />')
+    print(f'\t<image>')
+    print(f'\t\t<cube url="panos/{stem}.tiles/%s/l%l/%0v/l%l_%s_%0v_%0h.jpg" multires="{multires}" />')
+    print(f'\t</image>')
+    print(f'</scene>')
+    print("-----------------------------------------", file=sys.stderr)
 
-    print(f"Done → {out_dir}\n")
+    print(f"Done → {out_dir}\n", file=sys.stderr)
     return True
 
 
