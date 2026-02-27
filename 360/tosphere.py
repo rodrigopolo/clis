@@ -11,10 +11,8 @@ Output:
     {prefix}.tif   — equirectangular TIFF, saved next to the input faces
 
 Output dimensions:
-    width  = round(face_size × π)      e.g. 6655 → 20907
-    height = round(width / 2)          e.g. 20907 → 10454
-(Matches the reference krpano tool.  The old toequirectangular.sh gives 20912×10456
-because it truncates π×face_size and rounds up to the next multiple of 16.)
+    width  = round(face_size × π), rounded up to the nearest even number
+    height = width / 2   (always an integer, exact 2:1 ratio)
 
 Usage:
     python3 tosphere.py IMG_1650_f.tif              # auto-discovers the other 5
@@ -287,7 +285,9 @@ def process_panorama(directory: str, prefix: str,
         print("done")
 
     out_w = round(face_size * math.pi)
-    out_h = round(out_w / 2)
+    if out_w % 2 != 0:
+        out_w += 1          # width must be even to guarantee exact 2:1 ratio
+    out_h = out_w // 2
     print(f"  Face size:   {face_size} × {face_size} px")
     print(f"  Output size: {out_w} × {out_h} px")
     print(f"  Projecting … ", end='', flush=True)
