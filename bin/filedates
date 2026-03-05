@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+import sys
+import os
+import stat
+from datetime import datetime, timezone
+
+def format_dt(ts):
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+def format_diff(seconds):
+    seconds = int(abs(seconds))
+    d, rem = divmod(seconds, 86400)
+    h, rem = divmod(rem, 3600)
+    m, s   = divmod(rem, 60)
+    parts = []
+    if d: parts.append(f"{d}d")
+    if h: parts.append(f"{h}h")
+    if m: parts.append(f"{m}m")
+    parts.append(f"{s}s")
+    return " ".join(parts)
+
+for path in sys.argv[1:]:
+    try:
+        st = os.stat(path)
+        mtime = st.st_mtime
+
+        # Birth time: available on macOS (st_birthtime), not always on Linux
+        btime = getattr(st, "st_birthtime", None)
+        if btime is None:
+            btime_str = "N/A"
+            diff_str  = "N/A"
+        else:
+            btime_str = format_dt(btime)
+            diff_str  = format_diff(mtime - btime)
+
+        print(f"{btime_str}\t{format_dt(mtime)}\t{diff_str}\t{path}")
+    except OSError as e:
+        print(f"ERROR\tERROR\tERROR\t{path} ({e})", file=sys.stderr)
+
