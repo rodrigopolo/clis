@@ -1,0 +1,184 @@
+# Gaussian Splatting on Mac with FLOSS
+
+## Scripts
+* `A1Exctract.sh` to extract frames from the Antigravity A1 drone.
+* `Insta360Exctract.sh` to extract frames from any 360 camera.
+* `Colmap.sh` Run COLMAP reconstruction needed for Brush.
+* `Brush.sh` Select best COLMAP sparse model and run Brush Gaussian Splatting training.
+
+To extract frames from the Antigravity A1, inspired on Olli Huttunen's [camera angles](https://youtu.be/_TB8UcP9FAk)
+```sh
+~/clis/GaussianSplatting/A1Exctract.sh \
+--scenedir ~/Desktop/Project \
+--keep-frames \
+--fps 3 \
+~/Desktop/input.mov
+```
+
+To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig positions and angles](https://youtu.be/N15E_0kZ1UM)
+```sh
+# High position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation high \
+--fps 3 \
+~/Desktop/high.mov
+
+# Middle position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation mid \
+--fps 3 \
+~/Desktop/mid.mov
+
+# Low position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation low \
+--fps 3 \
+~/Desktop/low.mov
+```
+
+To run COLMAP reconstruction
+```sh
+~/clis/GaussianSplatting/Colmap.sh \
+--scenedir ~/Desktop/Project
+```
+
+To automatically select best COLMAP sparse model and run Brush Gaussian Splatting training
+```sh
+~/clis/GaussianSplatting/Brush.sh \
+--scenedir ~/Desktop/Project
+```
+
+## Direct commands
+
+### Sharp frames
+Extract and select the sharpest frames from videos or directories of images using advanced sharpness scoring algorithms.
+```sh
+sharp-frames \
+  --fps 1 \
+  input.mov \
+  ./outputdir
+```
+
+###  Brush
+
+```sh
+# To run Brush Gaussian Splatting training
+brush ./my_colmap_project \
+  --total-steps 30000 \         # 30k is more than enough
+  --max-splats 4000000 \        # Hard cap at 4M splats
+  --max-resolution 2048 \       # Downsample input images
+  --growth-stop-iter 15000 \    # Stop adding splats
+  --sh-degree 3 \               # Lower SH degree = smaller file, less color detail
+  --export-every 5000 \         # Just in case
+  --export-path ./exports/
+
+# To analyze the result
+colmap model_analyzer --path ./sparse/0
+
+# Convert the result to text
+colmap model_converter \
+  --input_path ./sparse/0 \
+  --output_path ./sparse/0_txt \
+  --output_type TXT
+
+# To look the frames reference
+cat ./sparse/0_txt/images.txt | grep -i jpg | awk '{print $10}'
+```
+
+## Dependencies
+```sh
+# Xcode Command Line Tools (compiler, git, etc.)
+xcode-select --install
+
+# Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Rust (via rustup, NOT via Homebrew)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+### Python
+On macOS you'll need to have Python installed, a quick and reliable way to have
+Python installed is `pyenv`, a Python version manager that lets you easily
+install, switch between, and manage multiple Python versions, `pyenv` needs to
+be installed with Homebrew:
+
+```sh
+brew install pyenv
+```
+
+After installing `pyenv` it will show some commands to add `pyenv` to the shell:
+```sh
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
+```
+
+These commands add this to the `.zshrc` file the `pyenv` initialization, this
+could vary from system to system:
+```
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - zsh)"
+```
+
+Now that we have `pyenv` installed, we have to install a `Python` version and
+make it available systemwide:
+```sh
+pyenv install 3.12.9
+pyenv global 3.12.9
+pip install --upgrade pip
+```
+
+### FFmpeg
+```sh
+brew install ffmpeg
+```
+
+### Install Sharp frames
+```sh
+pip install sharp-frames
+```
+
+### Install COLMAP
+```sh
+brew install colmap
+```
+
+### Brush static binary (Simplest option)
+```sh
+# Create the directory if doesn't exists
+mkdir -p ~/.local/bin
+
+# Add the dir to the shell path if doesn't exists
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+
+# Download and uncompress Brush
+curl -L https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz \
+  | tar xJf -
+
+# Move brush to the bin dir
+mv brush-app-aarch64-apple-darwin/brush_app ~/.local/bin/brush
+
+# Remove the uncompressed folder
+rm -rf brush-app-aarch64-apple-darwin
+```
+
+### Compile Brush (Advanced option)
+```sh
+git clone https://github.com/ArthurBrussee/brush.git
+cargo test --all
+cargo install rerun-cli
+cargo run --release
+```
+
+> Repo: https://github.com/ArthurBrussee/brush.git
+
+## Other tools
+
+### Blender Photogrammetry Importer Add-on
+https://github.com/SBCV/Blender-Addon-Photogrammetry-Importer/releases/tag/v2026.02.16
