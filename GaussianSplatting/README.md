@@ -1,19 +1,36 @@
 # Gaussian Splatting on Mac with FLOSS
 
 ## Scripts
-* `A1Exctract.sh` to extract frames from the Antigravity A1 drone.
-* `Insta360Exctract.sh` to extract frames from any 360 camera.
+* `Exctract.sh` exctracts sharp equirectangular frames and create the diretory structure for COLMAP.
+* `A1PyColmap.py` exctracts the image angles from the equirectangular frames, and runs the PyCOLMAP reconstruction needed for Brush.
+* `Brush.sh` selects the best COLMAP sparse model and runs Brush Gaussian Splatting training.
+* `A1Exctract.sh` extracts sharp frames from the Antigravity A1 drone (not needed if `A1PyColmap.py` is used).
+* `Insta360Exctract.sh` extracts frames from any 360 camera.
 * `Colmap.sh` Run COLMAP reconstruction needed for Brush.
-* `Brush.sh` Select best COLMAP sparse model and run Brush Gaussian Splatting training.
 
-To extract frames from the Antigravity A1, inspired on Olli Huttunen's [camera angles](https://youtu.be/_TB8UcP9FAk)
+To create a gaussian splatting with the Antigravity A1
+
+1. Extract sharp frames in equirectangular format and diretory structure creation
 ```sh
-~/clis/GaussianSplatting/A1Exctract.sh \
+~/clis/GaussianSplatting/Exctract.sh \
 --scenedir ~/Desktop/Project \
---keep-frames \
 --fps 3 \
 ~/Desktop/input.mov
 ```
+
+2. Run COLMAP reconstruction using PyCOLMAP
+```sh
+~/clis/GaussianSplatting/A1PyColmap.py \
+--scenedir ~/Desktop/Project
+```
+
+3. To automatically select best COLMAP sparse model and run Brush Gaussian Splatting training
+```sh
+~/clis/GaussianSplatting/Brush.sh \
+--scenedir ~/Desktop/Project
+```
+
+After Brush finishes, you can load your `exports/export_30000.ply` file in https://superspl.at/editor
 
 To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig positions and angles](https://youtu.be/N15E_0kZ1UM)
 ```sh
@@ -42,12 +59,6 @@ To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig
 To run COLMAP reconstruction
 ```sh
 ~/clis/GaussianSplatting/Colmap.sh \
---scenedir ~/Desktop/Project
-```
-
-To automatically select best COLMAP sparse model and run Brush Gaussian Splatting training
-```sh
-~/clis/GaussianSplatting/Brush.sh \
 --scenedir ~/Desktop/Project
 ```
 
@@ -144,10 +155,13 @@ brew install ffmpeg
 pip install sharp-frames
 ```
 
-### Install COLMAP
+### Install PyCOLMAP
+PyCOLMAP is the official Python bindings for COLMAP, used by `A1PyColmap.py` for photogrammetry reconstruction.
 ```sh
-brew install colmap
+pip install pycolmap
 ```
+
+> Note: The Homebrew COLMAP (`brew install colmap`) is not required when using PyCOLMAP, it bundles its own COLMAP binaries.
 
 ### Brush static binary (Simplest option)
 ```sh
