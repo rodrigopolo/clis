@@ -7,6 +7,8 @@
 * `A1Exctract.sh` extracts sharp frames from the Antigravity A1 drone (not needed if `A1PyColmap.py` is used).
 * `Insta360Exctract.sh` extracts frames from any 360 camera.
 * `Colmap.sh` Run COLMAP reconstruction needed for Brush.
+* `Insta360PyExctract.sh` extracts per-view subfolders from any 360 camera for use with PyCOLMAP.
+* `Insta360PyColmap.py` runs PyCOLMAP reconstruction for Insta360 rig captures using a full RigConfig.
 
 ## Gaussian Splatting with the Antigravity A1 using PyCOLMAP
 
@@ -21,6 +23,43 @@
 2. Run COLMAP reconstruction using PyCOLMAP
 ```sh
 ~/clis/GaussianSplatting/A1PyColmap.py \
+--scenedir ~/Desktop/Project
+```
+
+3. To automatically select best COLMAP sparse model and run Brush Gaussian Splatting training
+```sh
+~/clis/GaussianSplatting/Brush.sh \
+--scenedir ~/Desktop/Project
+```
+
+After Brush finishes, you can load your `exports/export_30000.ply` file in https://superspl.at/editor
+
+## Gaussian Splatting with the Insta360 cameras PyCOLMAP
+
+1. Extract sharp frames into per-view subfolders (run once per camera position)
+```sh
+~/clis/GaussianSplatting/Insta360PyExctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation high \
+--fps 3 \
+~/Desktop/high.mov
+
+~/clis/GaussianSplatting/Insta360PyExctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation mid \
+--fps 3 \
+~/Desktop/mid.mov
+
+~/clis/GaussianSplatting/Insta360PyExctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation low \
+--fps 3 \
+~/Desktop/low.mov
+```
+
+2. Run COLMAP reconstruction using PyCOLMAP
+```sh
+~/clis/GaussianSplatting/Insta360PyColmap.py \
 --scenedir ~/Desktop/Project
 ```
 
