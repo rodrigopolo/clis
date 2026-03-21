@@ -40,7 +40,47 @@ Experimental scripts
 
 After Brush finishes, you can load your `exports/export_30000.ply` file in https://superspl.at/editor
 
-## Gaussian Splatting with the Insta360 cameras PyCOLMAP
+## Gaussian Splatting with the Insta360 cameras COLMAP
+
+To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig positions and angles](https://youtu.be/N15E_0kZ1UM)
+
+1. Frame extraction
+```sh
+# High position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation high \
+--fps 3 \
+~/Desktop/high.mov
+
+# Middle position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation mid \
+--fps 3 \
+~/Desktop/mid.mov
+
+# Low position
+~/clis/GaussianSplatting/Insta360Exctract.sh \
+--scenedir ~/Desktop/Project \
+--elevation low \
+--fps 3 \
+~/Desktop/low.mov
+```
+
+2. COLMAP reconstruction
+```sh
+~/clis/GaussianSplatting/Colmap.sh \
+--scenedir ~/Desktop/Project
+```
+
+3. To automatically select best COLMAP sparse model and run Brush Gaussian Splatting training
+```sh
+~/clis/GaussianSplatting/Brush.sh \
+--scenedir ~/Desktop/Project
+```
+
+## Gaussian Splatting with the Insta360 cameras PyCOLMAP (Experimental)
 
 1. Extract sharp frames into per-view subfolders (run once per camera position)
 ```sh
@@ -75,43 +115,9 @@ After Brush finishes, you can load your `exports/export_30000.ply` file in https
 --scenedir ~/Desktop/Project
 ```
 
-After Brush finishes, you can load your `exports/export_30000.ply` file in https://superspl.at/editor
-
-## Gaussian Splatting with the Insta360 cameras COLMAP
-
-To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig positions and angles](https://youtu.be/N15E_0kZ1UM)
-```sh
-# High position
-~/clis/GaussianSplatting/Insta360Exctract.sh \
---scenedir ~/Desktop/Project \
---elevation high \
---fps 3 \
-~/Desktop/high.mov
-
-# Middle position
-~/clis/GaussianSplatting/Insta360Exctract.sh \
---scenedir ~/Desktop/Project \
---elevation mid \
---fps 3 \
-~/Desktop/mid.mov
-
-# Low position
-~/clis/GaussianSplatting/Insta360Exctract.sh \
---scenedir ~/Desktop/Project \
---elevation low \
---fps 3 \
-~/Desktop/low.mov
-```
-
-To run COLMAP reconstruction
-```sh
-~/clis/GaussianSplatting/Colmap.sh \
---scenedir ~/Desktop/Project
-```
-
 ## Dependencies
 
-### Install these scripts
+### Install the scripts in this repo
 ```sh
 cd && git clone https://github.com/rodrigopolo/clis.git
 echo '[[ -d $HOME/clis/bin ]] && export PATH="$HOME/clis/bin:$PATH"' >> ~/.zshrc
