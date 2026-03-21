@@ -115,13 +115,7 @@ To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig
 --scenedir ~/Desktop/Project
 ```
 
-## Dependencies
-
-### Install the scripts in this repo
-```sh
-cd && git clone https://github.com/rodrigopolo/clis.git
-echo '[[ -d $HOME/clis/bin ]] && export PATH="$HOME/clis/bin:$PATH"' >> ~/.zshrc
-```
+## Dependencies / Tools to install first
 
 ### Brush static binary (Simplest option)
 ```sh
@@ -155,6 +149,12 @@ xcode-select --install
 echo >> ~/.zprofile
 echo 'eval "$(/opt/homebrew/bin/brew shellenv zsh)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+```
+
+### Install the scripts in this repo
+```sh
+cd && git clone https://github.com/rodrigopolo/clis.git
+echo '[[ -d $HOME/clis/bin ]] && export PATH="$HOME/clis/bin:$PATH"' >> ~/.zshrc
 ```
 
 ### FFmpeg, xz and Python
