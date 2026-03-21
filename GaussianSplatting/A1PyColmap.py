@@ -70,8 +70,10 @@ def create_virtual_camera(
     vfov_deg: float,
 ) -> pycolmap.Camera:
     """Create a virtual perspective camera."""
-    image_width = int(pano_width * hfov_deg / 360)
-    image_height = int(pano_height * vfov_deg / 180)
+    # image_width = int(pano_width * hfov_deg / 360)
+    # image_height = int(pano_height * vfov_deg / 180)
+    image_width = int(pano_width / np.pi) & ~1  # round down to even
+    image_height = image_width
     focal = image_width / (2 * np.tan(np.deg2rad(hfov_deg) / 2))
     return pycolmap.Camera.create_from_model_id(
         camera_id=0,
@@ -326,7 +328,7 @@ def run(args: argparse.Namespace) -> None:
     pano_image_names = sorted(
         p.relative_to(pano_image_dir).as_posix()
         for p in pano_image_dir.rglob("*")
-        if not p.is_dir()
+        if not p.is_dir() and not p.name.startswith(".")
     )
     logging.info(f"Found {len(pano_image_names)} images in {pano_image_dir}.")
 

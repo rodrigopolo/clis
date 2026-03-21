@@ -8,7 +8,7 @@
 * `Insta360Exctract.sh` extracts frames from any 360 camera.
 * `Colmap.sh` Run COLMAP reconstruction needed for Brush.
 
-To create a gaussian splatting with the Antigravity A1
+## Gaussian Splatting with the Antigravity A1 using PyCOLMAP
 
 1. Extract sharp frames in equirectangular format and diretory structure creation
 ```sh
@@ -31,6 +31,8 @@ To create a gaussian splatting with the Antigravity A1
 ```
 
 After Brush finishes, you can load your `exports/export_30000.ply` file in https://superspl.at/editor
+
+## Gaussian Splatting with the Insta360 cameras COLMAP
 
 To extract frames from a 360 camera, inspired on Olli Huttunen's [360 camera rig positions and angles](https://youtu.be/N15E_0kZ1UM)
 ```sh
@@ -62,7 +64,84 @@ To run COLMAP reconstruction
 --scenedir ~/Desktop/Project
 ```
 
-## Direct commands
+## Dependencies
+
+### Install these scripts
+```sh
+cd && git clone https://github.com/rodrigopolo/clis.git
+echo '[[ -d $HOME/clis/bin ]] && export PATH="$HOME/clis/bin:$PATH"' >> ~/.zshrc
+```
+
+### Brush static binary (Simplest option)
+```sh
+# Create the directory if doesn't exists
+mkdir -p ~/.local/bin
+
+# Add the dir to the shell path if doesn't exists
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+
+# Download and uncompress Brush
+curl -L https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz \
+  | tar xJf -
+
+# Move brush to the bin dir
+mv brush-app-aarch64-apple-darwin/brush_app ~/.local/bin/brush
+
+# Remove the uncompressed folder
+rm -rf brush-app-aarch64-apple-darwin
+```
+
+### Homebrew
+We need Python, FFmpeg and other command line tools, for that, we first need to install `xcode` and Homebrew
+```sh
+# Xcode Command Line Tools (compiler, git, etc.)
+xcode-select --install
+
+# Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Add Homebrew to the system $PATH
+echo >> ~/.zprofile
+echo 'eval "$(/opt/homebrew/bin/brew shellenv zsh)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+```
+
+### FFmpeg, xz and Python
+On macOS you'll need to have Python installed, a quick and reliable way to have
+Python installed is `pyenv`, a Python version manager that lets you easily
+install, switch between, and manage multiple Python versions, `pyenv` needs to
+be installed with Homebrew:
+
+```sh
+brew install ffmpeg xz pyenv
+```
+
+Add `pyenv` and `pip` to the system $PATH
+```sh
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
+```
+
+> **Note:** You'll have to restart your terminal in order to continue with the next steps.
+
+Now that we have `pyenv` installed, we have to install a `Python` version and
+make it available systemwide:
+```sh
+pyenv install 3.12.9
+pyenv global 3.12.9
+pip install --upgrade pip
+```
+
+### Install Sharp frames, PyCOLMAP and dependencies
+PyCOLMAP is the official Python bindings for COLMAP, used by `A1PyColmap.py` for photogrammetry reconstruction.
+```sh
+pip install Pillow scipy sharp-frames pycolmap
+```
+
+> **Note:** The Homebrew COLMAP (`brew install colmap`) is not required when using PyCOLMAP, it bundles its own COLMAP binaries.
+
+## Extra notes and Direct commands
 
 ### Sharp frames
 Extract and select the sharpest frames from videos or directories of images using advanced sharpness scoring algorithms.
@@ -99,90 +178,15 @@ colmap model_converter \
 cat ./sparse/0_txt/images.txt | grep -i jpg | awk '{print $10}'
 ```
 
-## Dependencies
+### Compile Brush (Advanced option)
+
+Install Rust
 ```sh
-# Xcode Command Line Tools (compiler, git, etc.)
-xcode-select --install
-
-# Homebrew
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
 # Rust (via rustup, NOT via Homebrew)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
 ```
 
-### Python
-On macOS you'll need to have Python installed, a quick and reliable way to have
-Python installed is `pyenv`, a Python version manager that lets you easily
-install, switch between, and manage multiple Python versions, `pyenv` needs to
-be installed with Homebrew:
-
-```sh
-brew install pyenv
-```
-
-After installing `pyenv` it will show some commands to add `pyenv` to the shell:
-```sh
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
-echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
-echo 'eval "$(pyenv init - zsh)"' >> ~/.zshrc
-```
-
-These commands add this to the `.zshrc` file the `pyenv` initialization, this
-could vary from system to system:
-```
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init - zsh)"
-```
-
-Now that we have `pyenv` installed, we have to install a `Python` version and
-make it available systemwide:
-```sh
-pyenv install 3.12.9
-pyenv global 3.12.9
-pip install --upgrade pip
-```
-
-### FFmpeg
-```sh
-brew install ffmpeg
-```
-
-### Install Sharp frames
-```sh
-pip install sharp-frames
-```
-
-### Install PyCOLMAP
-PyCOLMAP is the official Python bindings for COLMAP, used by `A1PyColmap.py` for photogrammetry reconstruction.
-```sh
-pip install pycolmap
-```
-
-> Note: The Homebrew COLMAP (`brew install colmap`) is not required when using PyCOLMAP, it bundles its own COLMAP binaries.
-
-### Brush static binary (Simplest option)
-```sh
-# Create the directory if doesn't exists
-mkdir -p ~/.local/bin
-
-# Add the dir to the shell path if doesn't exists
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-
-# Download and uncompress Brush
-curl -L https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz \
-  | tar xJf -
-
-# Move brush to the bin dir
-mv brush-app-aarch64-apple-darwin/brush_app ~/.local/bin/brush
-
-# Remove the uncompressed folder
-rm -rf brush-app-aarch64-apple-darwin
-```
-
-### Compile Brush (Advanced option)
 ```sh
 git clone https://github.com/ArthurBrussee/brush.git
 cargo test --all
