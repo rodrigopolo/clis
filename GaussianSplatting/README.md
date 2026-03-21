@@ -1,12 +1,18 @@
 # Gaussian Splatting on Mac with FLOSS
 
 ## Scripts
+
+Scripts for Antigravity A1 with PyCOLMAP (Faster)
 * `Exctract.sh` exctracts sharp equirectangular frames and create the diretory structure for COLMAP.
 * `A1PyColmap.py` exctracts the image angles from the equirectangular frames, and runs the PyCOLMAP reconstruction needed for Brush.
 * `Brush.sh` selects the best COLMAP sparse model and runs Brush Gaussian Splatting training.
-* `A1Exctract.sh` extracts sharp frames from the Antigravity A1 drone (not needed if `A1PyColmap.py` is used).
-* `Insta360Exctract.sh` extracts frames from any 360 camera.
+
+Scripts for Antigravity A1 with COLMAP
+* `A1Exctract.sh` extracts sharp frames from the Antigravity A1 drone
 * `Colmap.sh` Run COLMAP reconstruction needed for Brush.
+
+Experimental scripts
+* `Insta360Exctract.sh` extracts frames from any 360 camera.
 * `Insta360PyExctract.sh` extracts per-view subfolders from any 360 camera for use with PyCOLMAP.
 * `Insta360PyColmap.py` runs PyCOLMAP reconstruction for Insta360 rig captures using a full RigConfig.
 
