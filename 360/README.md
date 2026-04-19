@@ -1,15 +1,17 @@
-# 360° Panorama Scripts
+# 360° Scripts
 
 ## Python Panorama Scripts
 
 A collection of self-contained Python scripts for working with equirectangular panorama
 images and krpano-compatible multires cube tiles, no external tile-cutting tools required.
 
-| Script           | Purpose                                                    |
-|------------------|------------------------------------------------------------|
-| `tocubemap.py`   | Equirectangular → six cube-face TIFFs                      |
-| `tosphere.py`    | Six cube-face TIFFs → equirectangular TIFF                 |
-| `tilecreator.py` | Equirectangular → krpano multires cube tiles + XML snippet |
+| Script           | Purpose                                                        |
+|------------------|----------------------------------------------------------------|
+| `tocubemap.py`   | Equirectangular → six cube-face TIFFs                          |
+| `tosphere.py`    | Six cube-face TIFFs → equirectangular TIFF                     |
+| `tilecreator.py` | Equirectangular → krpano multires cube tiles + XML snippet     |
+| `srt_to_gpx.py`  | Converts DJI Avata 360 telemetry `.srt` files to `.gpx` format |
+
 
 ---
 
@@ -301,6 +303,46 @@ math. Rough benchmarks on an Apple M-series CPU:
 
 A collection of scripts to handle 360° panoramas in batch with ExifTool,
 ImageMagick and Hugin's `nona`, and `verdandi` CLIs.
+
+## DJI SRT to GPX Converter
+
+Converts DJI Avata 360 telemetry `.srt` files to `.gpx` format, extracting GPS coordinates, altitude, and timestamps from each frame.
+
+### Usage
+
+```bash
+~/clis/360/srt_to_gpx.py [options] FILE [FILE ...]
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `-o`, `--output PATH` | Output `.gpx` path (single input file only) |
+| `--tz-offset HOURS` | Hours to subtract from SRT timestamps to get UTC (default: `0`) |
+
+### Examples
+
+```bash
+# Single file, timestamps already in UTC
+~/clis/360/srt_to_gpx.py flight.SRT
+
+# Single file recorded in UTC+1 (e.g. Switzerland in winter)
+~/clis/360/srt_to_gpx.py --tz-offset 1 flight.SRT
+
+# Custom output path
+~/clis/360/srt_to_gpx.py --tz-offset 1 -o my_flight.gpx flight.SRT
+
+# Batch convert multiple files (each produces a .gpx next to the .srt)
+~/clis/360/srt_to_gpx.py --tz-offset 2 flight1.SRT flight2.SRT flight3.SRT
+```
+
+### Notes
+
+- **Elevation**: uses `abs_alt` (absolute altitude above sea level) from the SRT telemetry.
+- **Timezone**: DJI embeds local time in the SRT. Use `--tz-offset` to convert to UTC (e.g. `1` for UTC+1, `2` for UTC+2).
+- **Output**: one `.gpx` per input file, written alongside the source file unless `-o` is specified.
+- Frames with no GPS fix (coordinates `0, 0`) are skipped automatically.
 
 ## Installing dependencies and scripts
 
