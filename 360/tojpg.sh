@@ -32,12 +32,7 @@ for f in $@; do
         exit 1
     fi
 
-    # Copy metadata
-    exiftool \
-        -overwrite_original \
-        -TagsFromFile \
-        "$f" \
-        "$OUTPUT"
+   echo Inject metadata with inject360metaImg.sh
 
     # Check if exiftool command was successful
     if [ $? -ne 0 ]; then

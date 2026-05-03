@@ -104,10 +104,11 @@ fi
 
 # --- Brush -------------------------------------------------------------------
 log "Starting Brush training."
+# Removed option
+# 	--max-resolution 2444 \
 brush "${SCENE_DIR}" \
 	--total-steps 30000 \
 	--max-splats 4000000 \
-	--max-resolution 2444 \
 	--growth-stop-iter 15000 \
 	--sh-degree 3 \
 	--export-every 5000 \

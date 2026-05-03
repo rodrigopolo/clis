@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""
+fixpicdate - Extract date from EXIF or filename, set EXIF metadata, and rename image files.
+
+Usage:
+    fixpicdate [--offset OFFSET] [--dry-run] <file> [<file> ...]
+
+Supported extensions: .dng, .jpg, .jpeg, .insp
+Filename fallback format: IMG_YYYYMMDD_HHMMSS[_*]_NNN.ext
+Output name format: YYYY-MM-DD HH.MM.SS IMG_NNN.ext
+"""
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+DEFAULT_OFFSET = "-06:00"
+SUPPORTED_EXTENSIONS = {".dng", ".jpg", ".jpeg", ".insp"}
+
+# (make_substring, model_substring) — case-insensitive
+KNOWN_CAMERAS = [
+    ("yingling", "antigravity"),  # Antigravity A1
+    ("arashi",   "insta360"),     # Insta360 X5 / Insta360 Camera
+]
+
+# Date extraction priority: firmware-set fields first, ModifyDate last (stitching software corrupts it)
+DATE_FIELDS = ["DateTimeOriginal", "CreateDate", "ModifyDate"]
+
+
+def die(msg: str) -> None:
+    print(f"Error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def run_exiftool_json(path: Path, *tags: str) -> dict:
+    cmd = ["exiftool", "-j", *[f"-{t}" for t in tags], str(path)]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return {}
+    try:
+        return json.loads(result.stdout)[0]
+    except (json.JSONDecodeError, IndexError):
+        return {}
+
+
+def check_camera(path: Path) -> bool:
+    data = run_exiftool_json(path, "Make", "Model")
+    make  = (data.get("Make")  or "").lower()
+    model = (data.get("Model") or "").lower()
+
+    if not make or not model:
+        print(f"  WARNING: Make/Model absent in EXIF — cannot verify 360 camera, skipping.")
+        return False
+
+    for make_pat, model_pat in KNOWN_CAMERAS:
+        if make_pat in make and model_pat in model:
+            return True
+
+    print(f"  WARNING: Unrecognized camera Make={data.get('Make')!r} Model={data.get('Model')!r} — skipping.")
+    return False
+
+
+def extract_date_from_exif(path: Path) -> tuple[str, str] | None:
+    """Return (date_str, field_name) where date_str is 'YYYY:MM:DD HH:MM:SS', or None."""
+    data = run_exiftool_json(path, *DATE_FIELDS)
+    pattern = re.compile(r"^\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}")
+    for field in DATE_FIELDS:
+        value = data.get(field, "")
+        if value and pattern.match(str(value)):
+            return str(value)[:19], field
+    return None
+
+
+def extract_date_from_filename(path: Path) -> str | None:
+    """Parse 'YYYY:MM:DD HH:MM:SS' from IMG_YYYYMMDD_HHMMSS_... filename, or None."""
+    m = re.search(r"(\d{8})_(\d{6})", path.stem)
+    if not m:
+        return None
+    d, t = m.group(1), m.group(2)
+    return f"{d[:4]}:{d[4:6]}:{d[6:]} {t[:2]}:{t[2:4]}:{t[4:]}"
+
+
+def get_number_suffix(path: Path) -> str:
+    """Return the last numeric group in the stem, zero-padded to 3 digits."""
+    groups = re.findall(r"\d+", path.stem)
+    return groups[-1].zfill(3) if groups else "000"
+
+
+def set_exif_date(path: Path, date_str: str, offset: str, dry_run: bool) -> bool:
+    """Write date metadata to file using exiftool. Returns True on success."""
+    m = re.match(r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})", date_str)
+    if not m:
+        return False
+    yr, mo, dy, hh, mi, ss = m.groups()
+    date_part = f"{yr}:{mo}:{dy}"
+    time_part = f"{hh}:{mi}:{ss}"
+    dt_plain  = f"{date_part} {time_part}"
+    dt_offset = f"{date_part} {time_part}{offset}"
+    time_off  = f"{time_part}{offset}"
+    dt_subsec = f"{date_part} {time_part}.00{offset}"
+
+    cmd = [
+        "exiftool",
+        f"-DateTimeOriginal={dt_plain}",
+        f"-CreateDate={dt_plain}",
+        f"-FileModifyDate={dt_offset}",
+        f"-ModifyDate={dt_plain}",
+        f"-OffsetTime={offset}",
+        f"-OffsetTimeOriginal={offset}",
+        f"-OffsetTimeDigitized={offset}",
+        f"-IPTC:DigitalCreationDate={date_part}",
+        f"-IPTC:TimeCreated={time_off}",
+        f"-IPTC:DigitalCreationTime={time_off}",
+        f"-XMP:DateCreated={dt_subsec}",
+        "-overwrite_original",
+        str(path),
+    ]
+
+    if dry_run:
+        print(f"  [dry-run] would set EXIF date: {dt_offset}")
+        return True
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  WARNING: exiftool error: {result.stderr.strip()}")
+        return False
+    return True
+
+
+def rename_file(path: Path, date_str: str, dry_run: bool) -> Path:
+    """Rename to 'YYYY-MM-DD HH.MM.SS IMG_NNN.ext'. Returns new path."""
+    m = re.match(r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})", date_str)
+    if not m:
+        return path
+    yr, mo, dy, hh, mi, ss = m.groups()
+    suffix  = get_number_suffix(path)
+    new_name = f"{yr}-{mo}-{dy} {hh}.{mi}.{ss} IMG_{suffix}{path.suffix}"
+    new_path = path.parent / new_name
+
+    if dry_run:
+        print(f"  [dry-run] would rename: {path.name}  →  {new_name}")
+        return new_path
+
+    if new_path.exists() and new_path != path:
+        print(f"  WARNING: target already exists, skipping rename: {new_name}")
+        return path
+
+    path.rename(new_path)
+    print(f"  Renamed:  {path.name}  →  {new_name}")
+    return new_path
+
+
+def process_file(path: Path, offset: str, dry_run: bool) -> None:
+    print(f"\n{path}")
+
+    if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        print(f"  Skipping: unsupported extension {path.suffix!r}")
+        return
+
+    if not check_camera(path):
+        return
+
+    result = extract_date_from_exif(path)
+    if result:
+        date_str, source = result
+        # Skip ModifyDate if a filename-derived date is available, to avoid stitching timestamps
+        if source == "ModifyDate":
+            fn_date = extract_date_from_filename(path)
+            if fn_date:
+                date_str, source = fn_date, "filename (preferred over ModifyDate)"
+    else:
+        fn_date = extract_date_from_filename(path)
+        if fn_date:
+            date_str, source = fn_date, "filename"
+        else:
+            print(f"  ERROR: could not determine date — skipping.")
+            return
+
+    print(f"  Date: {date_str}  (source: {source})")
+    set_exif_date(path, date_str, offset, dry_run)
+    rename_file(path, date_str, dry_run)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Fix EXIF dates and rename 360-camera image files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument("--offset",  default=DEFAULT_OFFSET,
+                        help=f"timezone offset, e.g. -06:00 (default: {DEFAULT_OFFSET})")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="show what would be done without modifying files")
+    parser.add_argument("files", nargs="+", metavar="file",
+                        help="image files to process (.dng, .jpg, .jpeg, .insp)")
+    args = parser.parse_args()
+
+    if args.dry_run:
+        print("--- DRY RUN — no files will be modified ---")
+
+    for f in args.files:
+        path = Path(f)
+        if not path.exists():
+            print(f"\nERROR: file not found: {f}", file=sys.stderr)
+            continue
+        process_file(path, args.offset, args.dry_run)
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()

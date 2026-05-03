@@ -79,3 +79,98 @@ pyenv install 3.13.3
 pyenv global 3.13.3
 pip install --upgrade pip
 ```
+
+# fixa1instadate
+
+Fixes EXIF date metadata and renames image files from the **Insta360 X5** and 
+**Antigravity A1** 360 cameras. Handles both originals (`.insp`, `.dng`) and
+stitched outputs (`.dng`, `.jpg`).
+
+## The problem
+
+Stitching software (Antigravity Studio, Insta360 Studio) overwrites `ModifyDate`
+with the stitching timestamp, and some files (`.insp`, stitched `.jpg`) ship
+with no date metadata at all. The original capture time is always encoded in the
+filename.
+
+## Usage
+
+```
+fixa1instadate [--offset OFFSET] [--dry-run] <file> [<file> ...]
+```
+
+| Option      | Default  | Description                                                 |
+|-------------|----------|-------------------------------------------------------------|
+| `--offset`  | `-06:00` | Timezone offset written into EXIF (e.g. `-05:00`, `+02:00`) |
+| `--dry-run` | off      | Print what would happen without modifying any files         |
+
+**Examples**
+
+```bash
+# Preview changes for all A1 files
+fixa1instadate --dry-run *.dng *.jpg
+
+# Fix files using a different timezone
+fixa1instadate --offset -05:00 *.dng *.insp
+
+# Fix everything at once
+fixa1instadate *.dng *.jpg
+```
+
+## What it does
+
+For each file, the script runs three steps in order:
+
+### 1. Camera validation
+
+Reads `Make` and `Model` from EXIF and verifies the file comes from a known 360
+camera. Files from unrecognized cameras are skipped with a warning.
+
+| Make (contains) | Model (contains) | Camera                        |
+|-----------------|------------------|-------------------------------|
+| `Yingling`      | `Antigravity`    | Antigravity A1                |
+| `Arashi`        | `Insta360`       | Insta360 X5 / Insta360 Camera |
+
+### 2. Date extraction
+
+Checks sources in this priority order, using the first match:
+
+1. **`DateTimeOriginal`** — set by camera firmware at capture time
+2. **`CreateDate`** — also firmware-set
+3. **Filename** — `IMG_YYYYMMDD_HHMMSS_NNN.ext` pattern, encoded at capture
+4. **`ModifyDate`** — only if no filename match exists (unreliable: stitching software overwrites it)
+
+The filename fallback is preferred over `ModifyDate` because stitching software
+corrupts `ModifyDate` with the processing timestamp, while the filename always
+reflects the original capture moment.
+
+### 3. EXIF write
+
+Sets the following fields (matching the approach used in `setpicdate.py`):
+
+- `DateTimeOriginal`, `CreateDate`, `ModifyDate`
+- `FileModifyDate`
+- `OffsetTime`, `OffsetTimeOriginal`, `OffsetTimeDigitized`
+- `IPTC:DigitalCreationDate`, `IPTC:TimeCreated`, `IPTC:DigitalCreationTime`
+- `XMP:DateCreated`
+
+### 4. Rename
+
+Renames the file to a sortable, human-readable format:
+
+```
+IMG_20260501_161337_005.dng  ->  2026-05-01 16.13.37 IMG_005.dng
+IMG_20260429_194801_00_017.jpg  ->  2026-04-29 19.48.03 IMG_017.jpg
+```
+
+The numeric suffix is the last group of digits in the original filename,
+zero-padded to 3 digits.
+
+## Supported files
+
+`.dng` `.jpg` `.jpeg` `.insp`
+
+## Requirements
+
+- Python 3.10+
+- [`exiftool`](https://exiftool.org/) available in `$PATH`
