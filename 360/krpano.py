@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-tilecreator.py — Generate krpano-compatible multires cube tiles from equirectangular panoramas.
+krpano.py — Generate krpano-compatible multires cube tiles from equirectangular panoramas.
 
 Usage:
-    python3 tilecreator.py <equirectangular.jpg> [<image2.jpg> ...]
+    python3 krpano.py <equirectangular.jpg> [<image2.jpg> ...]
 
 Output:
-    {stem}.tiles/ directory next to each input image, containing:
+    {stem}/ directory next to each input image, containing:
       preview.jpg, thumb.jpg, and f/b/l/r/u/d tile directories.
 
 Dependencies: Pillow, numpy (both standard in scientific Python environments)
@@ -270,7 +270,7 @@ def get_gps_coordinates(image_path: str) -> tuple[str, str, str]:
 def process_image(img_path: str) -> bool:
     img_path = os.path.abspath(img_path)
     stem = os.path.splitext(os.path.basename(img_path))[0]
-    out_dir = os.path.join(os.path.dirname(img_path), f"{stem}.tiles")
+    out_dir = os.path.join(os.path.dirname(img_path), f"{stem}")
 
     print(f"\nProcessing: {img_path}", file=sys.stderr)
     print(f"Output:     {out_dir}", file=sys.stderr)
@@ -343,12 +343,12 @@ def process_image(img_path: str) -> bool:
     multires = f"512,{','.join(str(s) for s in level_sizes)}"
     scene_name = f"scene_{stem.lower().replace(' ', '_').replace('-', '_')}"
     print("--- XML snippet (paste into tour.xml) ---", file=sys.stderr)
-    print(f'<scene name="{scene_name}" title="{stem}" onstart="" thumburl="panos/{stem}.tiles/thumb.jpg" lat="{lat}" lng="{lng}" alt="{alt}" heading="0.0">')
+    print(f'<scene name="{scene_name}" title="{stem}" onstart="" thumburl="panos/{stem}/thumb.jpg" lat="{lat}" lng="{lng}" alt="{alt}" heading="0.0">')
     print(f'\t<control bouncinglimits="calc:image.cube ? true : false" />')
     print(f'\t<view hlookat="0.0" vlookat="0.0" fovtype="MFOV" fov="120" maxpixelzoom="2.0" fovmin="70" fovmax="140" limitview="auto" />')
-    print(f'\t<preview url="panos/{stem}.tiles/preview.jpg" />')
+    print(f'\t<preview url="panos/{stem}/preview.jpg" />')
     print(f'\t<image>')
-    print(f'\t\t<cube url="panos/{stem}.tiles/%s/l%l/%0v/l%l_%s_%0v_%0h.jpg" multires="{multires}" />')
+    print(f'\t\t<cube url="panos/{stem}/%s/l%l/%0v/l%l_%s_%0v_%0h.jpg" multires="{multires}" />')
     print(f'\t</image>')
     print(f'</scene>')
     print("-----------------------------------------", file=sys.stderr)
@@ -361,11 +361,11 @@ def process_image(img_path: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog='tilecreator.py',
+        prog='krpano.py',
         description='Generate krpano multires cube tiles from equirectangular panoramas.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            'Output: {stem}.tiles/ directory next to each input image.\n'
+            'Output: {stem}/ directory next to each input image.\n'
             'Large panoramas (≥ 25 MP) may require 8–12 GB of free RAM.'
         ),
     )
