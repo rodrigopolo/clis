@@ -6,7 +6,8 @@
 #
 # Options:
 #   --fps <rate>           Frames per second to extract (default: 1)
-#   --scenedir <path>     Override the output directory (default: same name as input video, no extension)
+#   --frames <n>           Number of frames to extract (default: 300)
+#   --scenedir <path>      Override the output directory (default: same name as input video, no extension)
 #   -h, --help             Show this help message
 
 set -euo pipefail
@@ -14,6 +15,7 @@ set -euo pipefail
 # --- Defaults -----------------------------------------------------------------
 
 FPS=1
+FRAMES=300
 OUTPUT_DIR_OVERRIDE=""
 
 # --- Help ---------------------------------------------------------------------
@@ -30,6 +32,9 @@ while [[ $# -gt 0 ]]; do
     --fps)
       [[ -z "${2:-}" ]] && { echo "Error: --fps requires a value." >&2; exit 1; }
       FPS="$2"; shift 2 ;;
+    --frames)
+      [[ -z "${2:-}" ]] && { echo "Error: --frames requires a value." >&2; exit 1; }
+      FRAMES="$2"; shift 2 ;;
     --scenedir)
       [[ -z "${2:-}" ]] && { echo "Error: --scenedir requires a value." >&2; exit 1; }
       OUTPUT_DIR_OVERRIDE="$2"; shift 2 ;;
@@ -67,9 +72,14 @@ echo "================================================"
 echo "  Input  : ${INPUT_VIDEO}"
 echo "  Output : ${OUTPUT_DIR}/frames/"
 echo "  FPS    : ${FPS}"
+echo "  Frames : ${FRAMES}"
 echo "================================================"
 echo ""
 echo "  Extracting sharp frames at ${FPS} fps..."
-sharp-frames --fps "${FPS}" "${INPUT_VIDEO}" "${OUTPUT_DIR}/frames"
+sharp-frames \
+  --fps "${FPS}" \
+  --num-frames "${FRAMES}" \
+  "${INPUT_VIDEO}" \
+  "${OUTPUT_DIR}/frames"
 echo "  Done."
 echo "================================================"
