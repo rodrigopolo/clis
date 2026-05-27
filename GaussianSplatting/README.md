@@ -1,6 +1,6 @@
 # Gaussian Splatting on Mac with FLOSS
 
-## Scripts
+## Included Scripts
 
 Scripts for Antigravity A1 with PyCOLMAP (Faster)
 * `Exctract.sh` exctracts sharp equirectangular frames and create the diretory structure for COLMAP.
@@ -187,6 +187,7 @@ pip install --upgrade pip
 ### Install Sharp frames, PyCOLMAP and dependencies
 PyCOLMAP is the official Python bindings for COLMAP, used by `A1PyColmap.py` for photogrammetry reconstruction.
 ```sh
+pip install opencv-python-headless
 pip install Pillow scipy sharp-frames pycolmap
 ```
 
@@ -195,7 +196,7 @@ pip install Pillow scipy sharp-frames pycolmap
 ## Extra notes and Direct commands
 
 ### Sharp frames
-Extract and select the sharpest frames from videos or directories of images using advanced sharpness scoring algorithms.
+Extract and select the sharpest frames from videos or directories of images using advanced sharpness scoring algorithms, the ` --fps` defines the frmes per second, and the `--num-frames` flag the number of frames to extract.
 ```sh
 sharp-frames \
   --fps 1 \
