@@ -1,0 +1,424 @@
+#!/usr/bin/env python3
+"""
+Extract GPS track from Antigravity A1 / Insta360 .insv files.
+
+The .insv container is a standard MP4 file with a proprietary Insta360 binary
+trailer appended after the last MP4 box.  The trailer ends with the 32-byte
+ASCII magic string and contains (among other sensor streams) a GPS section
+composed of fixed-size 53-byte records.
+
+GPS record layout (53 bytes, little-endian):
+  [0]      0x41  marker byte
+  [1:9]    double  latitude  (positive value; sign from byte 9)
+  [9]      0x4e='N' or 0x53='S'  hemisphere
+  [10:18]  double  longitude (positive/absolute value; sign from byte 18)
+  [18]     0x45='E' or 0x57='W'  hemisphere
+  [19:35]  16 bytes  speed + bearing (doubles, not decoded here)
+  [35:43]  double  elevation (metres)
+  [43:47]  uint32  Unix timestamp (seconds UTC)
+  [47:53]  6 bytes  (padding / sub-second data, not used)
+"""
+
+import struct
+import sys
+import datetime
+import math
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+MAGIC = b'8db42d694ccc418790edff439fe026bf'
+RECORD_SIZE = 53
+
+# ──────────────────────────────────────────────────────────────
+# Trailer parsing
+# ──────────────────────────────────────────────────────────────
+
+def read_trailer(path: str) -> bytes:
+    with open(path, 'rb') as f:
+        # Verify magic (last 32 bytes, stored as ASCII hex)
+        f.seek(-32, 2)
+        if f.read(32) != MAGIC:
+            raise ValueError(f"{path!r} is not an Insta360/Antigravity .insv file")
+
+        # Trailer size is the 4-byte LE uint32 at offset -40 from EOF
+        f.seek(-40, 2)
+        trailer_size = struct.unpack('<I', f.read(4))[0]
+
+        f.seek(0, 2)
+        file_size = f.tell()
+        if trailer_size > file_size or trailer_size < 1024:
+            raise ValueError(f"Suspicious trailer size: {trailer_size}")
+
+        f.seek(file_size - trailer_size)
+        return f.read(trailer_size)
+
+
+def find_gps_section(trailer: bytes) -> int:
+    """
+    Locate the GPS section by scanning for the first valid record.
+    A valid record has:  0x41 | lat_double (±90) | 'N'/'S' | lon_double (0–180) | 'E'/'W'
+    and the *next* record 53 bytes later must also match.
+    Returns the trailer offset of the first record's 0x41 byte.
+    """
+    for i in range(len(trailer) - RECORD_SIZE * 2):
+        if trailer[i] != 0x41:
+            continue
+        try:
+            lat = struct.unpack('<d', trailer[i+1:i+9])[0]
+        except struct.error:
+            continue
+        if not (-90 < lat <= 90) or lat == 0.0:
+            continue
+        ns = trailer[i+9]
+        if ns not in (0x4e, 0x53):
+            continue
+        try:
+            lon = struct.unpack('<d', trailer[i+10:i+18])[0]
+        except struct.error:
+            continue
+        if not (0 <= lon < 180):
+            continue
+        if trailer[i+18] not in (0x45, 0x57):
+            continue
+        # Confirm next record
+        j = i + RECORD_SIZE
+        if j + 19 > len(trailer):
+            continue
+        if trailer[j] != 0x41:
+            continue
+        try:
+            lat2 = struct.unpack('<d', trailer[j+1:j+9])[0]
+        except struct.error:
+            continue
+        if -90 < lat2 <= 90 and lat2 != 0.0:
+            return i
+
+    # Fallback: accept a single valid record (short clips may have only one GPS fix)
+    for i in range(len(trailer) - RECORD_SIZE):
+        if trailer[i] != 0x41:
+            continue
+        try:
+            lat = struct.unpack('<d', trailer[i+1:i+9])[0]
+        except struct.error:
+            continue
+        if not (-90 < lat <= 90) or lat == 0.0:
+            continue
+        if trailer[i+9] not in (0x4e, 0x53):
+            continue
+        try:
+            lon = struct.unpack('<d', trailer[i+10:i+18])[0]
+        except struct.error:
+            continue
+        if not (0 <= lon < 180):
+            continue
+        if trailer[i+18] not in (0x45, 0x57):
+            continue
+        print('  Warning: single GPS record — short clip, no timestamp confirmation',
+              file=sys.stderr)
+        return i
+
+    raise ValueError("GPS section not found — no valid GPS records in trailer")
+
+
+def parse_record(rec: bytes):
+    """
+    Parse one 53-byte GPS record.
+    Returns (lat, lon, ele, unix_ts) with lat/lon sign applied, or None if invalid.
+    """
+    if len(rec) < RECORD_SIZE or rec[0] != 0x41:
+        return None
+    lat, = struct.unpack('<d', rec[1:9])
+    ns = rec[9]
+    lon, = struct.unpack('<d', rec[10:18])
+    ew = rec[18]
+    ele, = struct.unpack('<d', rec[35:43])
+    ts, = struct.unpack('<I', rec[43:47])
+
+    if ns == 0x53:   # 'S'
+        lat = -lat
+    if ew == 0x57:   # 'W'
+        lon = -lon
+
+    return lat, lon, ele, ts
+
+
+# ──────────────────────────────────────────────────────────────
+# Kalman smoothing filter
+# ──────────────────────────────────────────────────────────────
+
+def kalman_smooth(
+    points: list,
+    q: float = 1e-9,
+    r: float = 1e-8,
+) -> list:
+    """
+    Apply a 1-D constant-position Kalman filter independently to latitude,
+    longitude, and elevation.
+
+    The filter trades off how much the true position can change between samples
+    (process noise q) against the measurement noise of the GPS receiver (r).
+    A low q/r ratio gives strong smoothing at the cost of a lag at motion onset,
+    which reproduces the behaviour of the Antigravity Studio app export.
+
+    State update equations:
+        Predict:  P  ← P + q
+        Gain:     K  = P / (P + r)
+        Update:   x  ← x + K · (z − x)
+                  P  ← (1 − K) · P
+
+    Args:
+        points: list of (lat, lon, ele, unix_ts) tuples.
+        q:      Process noise variance. Smaller → smoother / more lag.
+                Default 1e-9 matches the Antigravity app's smoothing level.
+        r:      Measurement noise variance.
+                Default 1e-8.
+
+    Returns:
+        New list of (lat, lon, ele, unix_ts) with coordinates replaced by
+        Kalman-filtered values.  Timestamps are preserved unchanged.
+    """
+    if not points:
+        return points
+
+    result = []
+    # Initialise state from first measurement; high initial uncertainty so
+    # the first point passes through unchanged.
+    x_lat, x_lon, x_ele = points[0][0], points[0][1], points[0][2]
+    p_lat = p_lon = p_ele = 1.0
+
+    for lat, lon, ele, ts in points:
+        # Predict
+        p_lat += q
+        p_lon += q
+        p_ele += q
+
+        # Kalman gain
+        k_lat = p_lat / (p_lat + r)
+        k_lon = p_lon / (p_lon + r)
+        k_ele = p_ele / (p_ele + r)
+
+        # Update state
+        x_lat += k_lat * (lat - x_lat)
+        x_lon += k_lon * (lon - x_lon)
+        x_ele += k_ele * (ele - x_ele)
+
+        # Update uncertainty
+        p_lat *= (1.0 - k_lat)
+        p_lon *= (1.0 - k_lon)
+        p_ele *= (1.0 - k_ele)
+
+        result.append((x_lat, x_lon, x_ele, ts))
+
+    return result
+
+
+# ──────────────────────────────────────────────────────────────
+# GPX output
+# ──────────────────────────────────────────────────────────────
+
+_GPX_NS = 'http://www.topografix.com/GPX/1/1'
+
+def _ts_to_iso(ts: int) -> str | None:
+    """Convert a Unix timestamp (seconds) to ISO 8601 UTC string."""
+    if not (1_500_000_000 < ts < 2_000_000_000):
+        return None
+    dt = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def write_gpx(points: list, out_path: str) -> None:
+    """Write a GPX 1.1 file with one track segment."""
+    root = ET.Element('gpx', {
+        'version': '1.1',
+        'creator': 'extract_gps',
+        'xmlns': _GPX_NS,
+    })
+    trk = ET.SubElement(root, 'trk')
+    trkseg = ET.SubElement(trk, 'trkseg')
+    for lat, lon, ele, ts in points:
+        trkpt = ET.SubElement(trkseg, 'trkpt', {
+            'lat': f'{lat:.7f}',
+            'lon': f'{lon:.7f}',
+        })
+        ET.SubElement(trkpt, 'ele').text = f'{ele:.2f}'
+        iso = _ts_to_iso(ts)
+        if iso:
+            ET.SubElement(trkpt, 'time').text = iso
+
+    # Pretty-print (Python ≥ 3.9)
+    try:
+        ET.indent(root, space='  ')
+    except AttributeError:
+        pass
+
+    tree = ET.ElementTree(root)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        tree.write(f, encoding='unicode', xml_declaration=False)
+
+
+# ──────────────────────────────────────────────────────────────
+# CSV output
+# ──────────────────────────────────────────────────────────────
+
+def write_csv(points: list, out_path: str) -> None:
+    """Write a simple CSV file."""
+    with open(out_path, 'w') as f:
+        f.write('timestamp_utc,latitude,longitude,elevation_m\n')
+        for lat, lon, ele, ts in points:
+            iso = _ts_to_iso(ts) or ''
+            f.write(f'{iso},{lat:.7f},{lon:.7f},{ele:.2f}\n')
+
+
+# ──────────────────────────────────────────────────────────────
+# KML output
+# ──────────────────────────────────────────────────────────────
+
+def write_kml(points: list, out_path: str, name: str = 'Track') -> None:
+    """Write a KML 2.2 file with a single LineString track."""
+    coords = '\n'.join(
+        f'             {lon:.7f},{lat:.7f},{ele:.2f}'
+        for lat, lon, ele, _ in points
+    )
+    kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>{name}</name>
+    <description>Extracted by extract_gps</description>
+    <Style id="trackStyle">
+      <LineStyle>
+        <color>ff0000FF</color>
+        <width>4</width>
+      </LineStyle>
+    </Style>
+    <Style id="waypointStyle">
+      <IconStyle>
+        <Icon>
+          <href>http://maps.google.com/mapfiles/kml/paddle/red-circle.png</href>
+        </Icon>
+      </IconStyle>
+    </Style>
+    <Folder>
+      <name>Tracks</name>
+      <Placemark>
+        <name>{name}</name>
+        <description></description>
+        <styleUrl>#trackStyle</styleUrl>
+        <LineString>
+          <tessellate>1</tessellate>
+          <altitudeMode>absolute</altitudeMode>
+          <coordinates>
+{coords}
+          </coordinates>
+        </LineString>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>"""
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(kml)
+
+
+# ──────────────────────────────────────────────────────────────
+# Main
+# ──────────────────────────────────────────────────────────────
+
+def _resolve_output(insv_path: str, args) -> str:
+    return str(Path(insv_path).with_suffix(f'.extracted.{args.format}'))
+
+
+def _process_one(insv_path: str, args) -> bool:
+    """Extract GPS from a single .insv file. Returns True on success."""
+    out_path = _resolve_output(insv_path, args)
+
+    print(f'\n[{Path(insv_path).name}]', file=sys.stderr)
+    try:
+        trailer = read_trailer(insv_path)
+    except (ValueError, OSError) as exc:
+        print(f'  ERROR: {exc}', file=sys.stderr)
+        return False
+
+    print(f'  Trailer: {len(trailer):,} bytes', file=sys.stderr)
+
+    try:
+        gps_off = find_gps_section(trailer)
+    except ValueError as exc:
+        print(f'  ERROR: {exc}', file=sys.stderr)
+        return False
+
+    print(f'  GPS section at trailer offset 0x{gps_off:x}', file=sys.stderr)
+
+    points = []
+    i = gps_off
+    while i + RECORD_SIZE <= len(trailer):
+        rec = trailer[i:i+RECORD_SIZE]
+        result = parse_record(rec)
+        if result is None:
+            break
+        points.append(result)
+        i += RECORD_SIZE
+
+    if not points:
+        print('  ERROR: no GPS points extracted.', file=sys.stderr)
+        return False
+
+    print(f'  {len(points)} points  '
+          f'({_ts_to_iso(points[0][3])} → {_ts_to_iso(points[-1][3])})',
+          file=sys.stderr)
+
+    if args.smooth:
+        points = kalman_smooth(points, q=args.smooth_q, r=args.smooth_r)
+        print(f'  Kalman filter applied (q={args.smooth_q:.0e}, r={args.smooth_r:.0e})',
+              file=sys.stderr)
+
+    if args.format == 'gpx':
+        write_gpx(points, out_path)
+    elif args.format == 'kml':
+        write_kml(points, out_path, name=Path(insv_path).stem)
+    else:
+        write_csv(points, out_path)
+
+    print(f'  Saved → {out_path}', file=sys.stderr)
+    return True
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Extract GPS tracks from Antigravity A1 / Insta360 .insv files.')
+    parser.add_argument('--format', choices=['gpx', 'kml', 'csv'], default='gpx',
+                        help='Output format (default: gpx)')
+    parser.add_argument('insv', nargs='+', metavar='file.insv',
+                        help='One or more .insv input files')
+
+    smooth_grp = parser.add_argument_group(
+        'smoothing',
+        'Apply a Kalman filter to reduce GPS noise (approximates Antigravity Studio output)')
+    smooth_grp.add_argument(
+        '--smooth', action='store_true',
+        help='Enable Kalman smoothing filter')
+    smooth_grp.add_argument(
+        '--smooth-q', type=float, default=1e-9, metavar='Q',
+        help='Process noise variance — smaller = smoother / more lag (default: 1e-9)')
+    smooth_grp.add_argument(
+        '--smooth-r', type=float, default=1e-8, metavar='R',
+        help='Measurement noise variance (default: 1e-8)')
+
+    args = parser.parse_args()
+
+    ok = err = 0
+    for insv_path in args.insv:
+        if _process_one(insv_path, args):
+            ok += 1
+        else:
+            err += 1
+
+    if len(args.insv) > 1:
+        print(f'\nDone: {ok} succeeded, {err} failed.', file=sys.stderr)
+
+    if err and not ok:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
