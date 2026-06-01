@@ -1,0 +1,6 @@
+#!/usr/bin/env zsh
+SCRIPT_DIR=${0:A:h}
+cd "$SCRIPT_DIR"
+echo "Available CLIs:" >&2
+ls *(-x.)
+
