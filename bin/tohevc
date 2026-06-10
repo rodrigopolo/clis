@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env bash
 
-# Smart HEVC/H.265 Encoder for macOS
-# Copyright (c) 2026 Rodrigo Polo
+# Smart HEVC/H.265 Encoder Bash Script for macOS
+# Copyright (c) 2025 Rodrigo Polo
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -15,20 +15,25 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
-from encoder_lib import EncoderConfig, main
+# Exit on error, undefined variables, and pipe failures
+set -euo pipefail
 
-HEVC = EncoderConfig(
-    codec_label="HEVC",
-    ffmpeg_codec="libx265",
-    default_crf=22,
-    crf_min=15,
-    crf_max=28,
-    default_preset="superfast",
-    default_output_suffix=".hevc",
-    codec_tag="hvc1",
-    skip_codec_ids=["HEVC", "hvc1", "hev1"],
-    supports_hdr=True,
-)
+# Codec-specific configuration (consumed by encoder_lib.sh)
+CODEC_LABEL="HEVC"
+FFMPEG_CODEC="libx265"
+CODEC_TAG="hvc1"
+CODEC_FORMAT_MATCH='.Format=="HEVC" or .CodecID=="hvc1" or .CodecID=="hev1"'
+DEFAULT_CRF=21
+CRF_MIN=15
+CRF_MAX=28
+DEFAULT_PRESET="superfast"
+DEFAULT_OUTPUT_SUFFIX=".hevc"
+SUPPORTS_HDR=1
 
-if __name__ == "__main__":
-    main(HEVC)
+# Resolve script directory and load shared library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=encoder_lib.sh
+source "${SCRIPT_DIR}/encoder_lib.sh"
+
+# Run main function with all arguments
+main "$@"

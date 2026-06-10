@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env bash
 
-# Smart AVC/H.264 Encoder for macOS
-# Copyright (c) 2026 Rodrigo Polo
+# Smart AVC/H.264 Encoder Bash Script for macOS
+# Copyright (c) 2025 Rodrigo Polo
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -15,19 +15,25 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
-from encoder_lib import EncoderConfig, main
+# Exit on error, undefined variables, and pipe failures
+set -euo pipefail
 
-AVC = EncoderConfig(
-    codec_label="AVC",
-    ffmpeg_codec="libx264",
-    default_crf=21,
-    crf_min=18,
-    crf_max=28,
-    default_preset="faster",
-    default_output_suffix=".avc",
-    codec_tag=None,
-    skip_codec_ids=["AVC", "avc1"],
-)
+# Codec-specific configuration (consumed by encoder_lib.sh)
+CODEC_LABEL="AVC"
+FFMPEG_CODEC="libx264"
+CODEC_TAG=""
+CODEC_FORMAT_MATCH='.Format=="AVC" or .CodecID=="avc1"'
+DEFAULT_CRF=21
+CRF_MIN=18
+CRF_MAX=28
+DEFAULT_PRESET="faster"
+DEFAULT_OUTPUT_SUFFIX=".avc"
+SUPPORTS_HDR=0
 
-if __name__ == "__main__":
-    main(AVC)
+# Resolve script directory and load shared library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=encoder_lib.sh
+source "${SCRIPT_DIR}/encoder_lib.sh"
+
+# Run main function with all arguments
+main "$@"
