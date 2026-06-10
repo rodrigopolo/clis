@@ -44,6 +44,7 @@ CRF="$DEFAULT_CRF"
 PRESET="$DEFAULT_PRESET"
 OUTPUT_SUFFIX="$DEFAULT_OUTPUT_SUFFIX"
 SKIP=0
+SKIP_FFMPEG=0
 DEINTERLACE=0
 VERBOSE=0
 COPY_DATES=0
@@ -95,6 +96,8 @@ Options:
                               * Default: ${COLOR_TAG}
   --skip                      Skip encoding if it is already ${CODEC_LABEL} and dimensions
                               are already meet
+  --skip-ffmpeg               Skip encoding if the file was already
+                              encoded with FFmpeg
   --deinterlace               Apply yadif deinterlacing filter
   --osufix <suffix>           Set output suffix (default: ${OUTPUT_SUFFIX})
   --isufix <suffix>           Set input suffix after encoding (default: ${ORIGINAL_SUFFIX})
@@ -489,6 +492,30 @@ get_audio_codecs() {
 }
 
 # ---------------------------------------------------------------------------
+# Skip detection helpers
+# ---------------------------------------------------------------------------
+
+# Returns 0 if the input appears to have already been encoded by FFmpeg/libav
+# (container "Lavf..." tag and/or libx264/libx265 bitstream signature).
+# Note: this also matches other tools built on FFmpeg's libav* libraries
+# (e.g. HandBrake). If metadata was stripped (-map_metadata -1), this returns
+# 1 even for an FFmpeg-encoded file, so the file is simply re-encoded.
+was_encoded_by_ffmpeg() {
+    local json_info="$1"
+    local signature
+    signature=$(echo "$json_info" | jq -r '
+        [.media.track[]
+         | select(.["@type"]=="General" or .["@type"]=="Video")
+         | (.Encoded_Application // ""), (.Writing_Application // ""),
+           (.Encoded_Library // ""), (.Encoded_Library_String // "")
+        ] | join(" ")' 2>/dev/null)
+    case "$signature" in
+        *x264*|*x265*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
 # HDR detection and argument building
 # ---------------------------------------------------------------------------
 
@@ -735,6 +762,12 @@ encode() {
         log "File is not encoded with $CODEC_LABEL codec."
     fi
 
+    # Skip encoding if the file was already processed by FFmpeg
+    if [[ "$SKIP_FFMPEG" -eq 1 ]] && was_encoded_by_ffmpeg "$json_info"; then
+        echo "Video was already encoded with FFmpeg, skipping encoding." >&2
+        return 0
+    fi
+
     # Skip encoding if already target codec and no resizing needed
     if [[ "$SKIP" == 1 && -n "$has_codec" && -z "$resize_filter" ]]; then
         echo "Video is already $CODEC_LABEL and does not require resizing, skipping encoding." >&2
@@ -939,6 +972,10 @@ parse_args() {
                 ;;
             --skip)
                 SKIP=1
+                shift
+                ;;
+            --skip-ffmpeg)
+                SKIP_FFMPEG=1
                 shift
                 ;;
             --dates)
