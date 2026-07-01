@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-fixpicdate - Extract date from EXIF or filename, set EXIF metadata, and rename image files.
+fixa1instadate - Extract date from EXIF or filename, set EXIF metadata, and rename image files.
 
 Usage:
-    fixpicdate [--offset OFFSET] [--dry-run] <file> [<file> ...]
+    fixa1instadate [--offset OFFSET] [--dry-run] <file> [<file> ...]
 
 Supported extensions: .dng, .jpg, .jpeg, .insp
 Filename fallback format: IMG_YYYYMMDD_HHMMSS[_*]_NNN.ext
@@ -26,7 +26,7 @@ KNOWN_CAMERAS = [
     ("arashi",   "insta360"),     # Insta360 X5 / Insta360 Camera
 ]
 
-# Date extraction priority: firmware-set fields first, ModifyDate last (stitching software corrupts it)
+# Date extraction priority: filename first (most reliable), then EXIF DateTimeOriginal → CreateDate → ModifyDate
 DATE_FIELDS = ["DateTimeOriginal", "CreateDate", "ModifyDate"]
 
 
@@ -163,18 +163,13 @@ def process_file(path: Path, offset: str, dry_run: bool) -> None:
     if not check_camera(path):
         return
 
-    result = extract_date_from_exif(path)
-    if result:
-        date_str, source = result
-        # Skip ModifyDate if a filename-derived date is available, to avoid stitching timestamps
-        if source == "ModifyDate":
-            fn_date = extract_date_from_filename(path)
-            if fn_date:
-                date_str, source = fn_date, "filename (preferred over ModifyDate)"
+    fn_date = extract_date_from_filename(path)
+    if fn_date:
+        date_str, source = fn_date, "filename"
     else:
-        fn_date = extract_date_from_filename(path)
-        if fn_date:
-            date_str, source = fn_date, "filename"
+        result = extract_date_from_exif(path)
+        if result:
+            date_str, source = result
         else:
             print(f"  ERROR: could not determine date — skipping.")
             return
