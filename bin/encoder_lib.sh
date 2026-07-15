@@ -59,6 +59,7 @@ MAX_HEIGHT=0
 FLIP_ROTATE=""
 NO_VIDEO=0
 NO_AUDIO=0
+DRY_RUN=0
 
 
 # Helper function to convert 0/1 to Off/On
@@ -79,6 +80,9 @@ Options:
   -h, --help                  Show this help message and exit
   -v, --verbose               Enable verbose output
                               * Default: $(bool_to_text "$VERBOSE")
+  -n, --dry-run               Print the ffmpeg command that would be run,
+                              without encoding anything
+                              * Default: $(bool_to_text "$DRY_RUN")
   -s, --size <width>x<height> Set maximum video dimensions
                               (e.g., 3840x2160)
   -c, --crf <val>             Set ${CODEC_LABEL} CRF value
@@ -90,7 +94,8 @@ Options:
   -r, --flip-rotate <dir>     Rotate or flip video
                               right, left, upside-down, horizontal, vertical
   -a, --after-encode <action> Action after encoding:
-                              label, rename, delete; default: none
+                              label, rename, delete, deleteifsmaller;
+                              default: none
   -t, --tag-color <color>     Set Finder color tag for --after-encode=label
                               orange, red, yellow, blue, purple, green, gray;
                               * Default: ${COLOR_TAG}
@@ -291,6 +296,7 @@ after_encoding(){
     local input_dir="$2"
     local input_name="$3"
     local input_ext="$4"
+    local output_file="$5"
 
     if [ -n "$SUCCESS_ACTION" ]; then
       case "$SUCCESS_ACTION" in
@@ -305,6 +311,17 @@ after_encoding(){
         delete)
           echo "❗️ Deleting original" >&2
           rm "${input_dir}/${input_name}.${input_ext}"
+          ;;
+        deleteifsmaller)
+          local input_size output_size
+          input_size=$(stat -f%z "${input_dir}/${input_name}.${input_ext}" 2>/dev/null || echo 0)
+          output_size=$(stat -f%z "${output_file}" 2>/dev/null || echo 0)
+          if [[ "$output_size" -lt "$input_size" ]]; then
+              echo "❗️ Output is smaller (${output_size} < ${input_size} bytes), deleting original" >&2
+              rm "${input_dir}/${input_name}.${input_ext}"
+          else
+              echo "ℹ️ Output is not smaller (${output_size} >= ${input_size} bytes), keeping both files" >&2
+          fi
           ;;
         *)
           # No action for unknown values
@@ -382,6 +399,21 @@ get_resize_filter() {
 
     # Output resize_filter (and optionally set is_oversized globally)
     echo "$resize_filter"
+    return 0
+}
+
+# Ensure dimensions are divisible by 2 (required by yuv420p/x264/x265)
+get_even_dimensions_filter() {
+    local width="$1" height="$2"
+    local even_width even_height
+
+    even_width=$(( width / 2 * 2 ))
+    even_height=$(( height / 2 * 2 ))
+
+    if [[ "$even_width" != "$width" || "$even_height" != "$height" ]]; then
+        log "Dimensions ${width}x${height} not divisible by 2, adjusting to ${even_width}x${even_height}"
+        echo "scale=${even_width}:${even_height},setsar=1:1"
+    fi
     return 0
 }
 
@@ -755,6 +787,11 @@ encode() {
     else
         resize_filter=""
     fi
+    # The -s resize path above already truncates to even dimensions, so only
+    # fall back to this check when no resize is otherwise happening.
+    if [[ -z "$resize_filter" ]]; then
+        resize_filter=$(get_even_dimensions_filter "$input_width" "$input_height")
+    fi
     rotate_filter=$(get_rotate_filter)
 
     # Log encoding decision
@@ -764,7 +801,7 @@ encode() {
 
     # Skip encoding if the file was already processed by FFmpeg
     if [[ "$SKIP_FFMPEG" -eq 1 ]] && was_encoded_by_ffmpeg "$json_info"; then
-        echo "Video was already encoded with FFmpeg, skipping encoding." >&2
+        echo "${input_file} was already encoded with FFmpeg, skipping encoding." >&2
         return 0
     fi
 
@@ -810,10 +847,16 @@ encode() {
     formatted_cmd=$(echo "${FFTOOL}${ffmpeg_cmd}" | sed 's/ -/ \\\n  -/g' | sed 's/faststart \"/faststart \\\n  "/g')
     log "Executing:\n$formatted_cmd"
 
+    # Dry run: print the command and stop before touching ffmpeg
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "$formatted_cmd"
+        return 0
+    fi
+
     # Execute ffmpeg
     eval "${FFTOOL}${ffmpeg_cmd}" || {
         error "Error: Conversion failed."
-        [[ -f "$output_file" ]] && rm -f "$output_file"
+        # [[ -f "$output_file" ]] && rm -f "$output_file"
         return 1
     }
 
@@ -835,7 +878,7 @@ encode() {
     if [[ "$within_tolerance" = "yes" ]]; then
         log "✅ Duration difference is within tolerance."
         copy_attributes "$input_file" "$output_file"
-        after_encoding "$input_file" "$input_dir" "$input_name" "$input_ext"
+        after_encoding "$input_file" "$input_dir" "$input_name" "$input_ext" "$output_file"
     else
         error "❌ Duration difference exceeds tolerance!"
         return 1
@@ -852,6 +895,10 @@ parse_args() {
         case $1 in
             -v|--verbose)
                 VERBOSE=1
+                shift
+                ;;
+            -n|--dry-run)
+                DRY_RUN=1
                 shift
                 ;;
             -c|--crf)
@@ -1009,12 +1056,12 @@ parse_args() {
                     exit 1
                 fi
                 case "$2" in
-                    label|rename|delete)
+                    label|rename|delete|deleteifsmaller)
                         SUCCESS_ACTION="$2"
                         ;;
                     *)
                         usage
-                        error "Action after encoding must be one of: label, rename, delete."
+                        error "Action after encoding must be one of: label, rename, delete, deleteifsmaller."
                         exit 1
                         ;;
                 esac
