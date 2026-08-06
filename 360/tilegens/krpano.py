@@ -22,6 +22,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import xml.etree.ElementTree as ET
 
 import numpy as np
 from PIL import Image
@@ -35,6 +36,13 @@ FACES = ['f', 'b', 'r', 'l', 'u', 'd']
 PREVIEW_FACE_ORDER = ['l', 'f', 'r', 'b', 'u', 'd']  # krpano cube-strip order
 PREVIEW_FACE_SIZE = 256                      # each face in preview.jpg
 JPEG_QUALITY = 90
+
+GPANO_NS = 'http://ns.google.com/photos/1.0/panorama/'
+RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+GPANO_FIELDS = (
+    'PoseHeadingDegrees', 'PosePitchDegrees', 'PoseRollDegrees',
+    'InitialViewHeadingDegrees', 'InitialViewPitchDegrees',
+)
 
 
 # ── Level-size computation ────────────────────────────────────────────────────
@@ -265,6 +273,81 @@ def get_gps_coordinates(image_path: str) -> tuple[str, str, str]:
     return lat_str, lng_str, alt_str
 
 
+# ── GPano (Photo Sphere) XMP extraction ───────────────────────────────────────
+
+def get_gpano_values(image_path: str) -> dict[str, "float | None"]:
+    """
+    Extract GPano pose/initial-view properties from XMP metadata.
+    Returns a dict of GPANO_FIELDS -> float, or None where absent/empty.
+    Primary: Pillow's raw XMP packet. Fallback: exiftool subprocess.
+    """
+    values: dict[str, "float | None"] = {field: None for field in GPANO_FIELDS}
+
+    # ── Primary: Pillow raw XMP packet + stdlib XML parsing ────────────────
+    try:
+        with Image.open(image_path) as _img:
+            xmp_bytes = _img.info.get('xmp')
+
+        if xmp_bytes:
+            root = ET.fromstring(xmp_bytes)
+            for desc in root.iter(f'{{{RDF_NS}}}Description'):
+                for field in GPANO_FIELDS:
+                    if values[field] is not None:
+                        continue
+                    text = desc.get(f'{{{GPANO_NS}}}{field}')
+                    if text is None:
+                        child = desc.find(f'{{{GPANO_NS}}}{field}')
+                        text = child.text if child is not None else None
+                    if text is not None and text.strip() != '':
+                        values[field] = float(text)
+    except Exception:
+        pass  # malformed/absent XMP — fall through
+
+    if any(v is not None for v in values.values()):
+        return values
+
+    # ── Fallback: exiftool ─────────────────────────────────────────────────
+    exiftool_bin = shutil.which("exiftool")
+    if exiftool_bin:
+        try:
+            result = subprocess.run(
+                [exiftool_bin, "-j", "-n", image_path],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if data:
+                    rec = data[0]
+                    for field in GPANO_FIELDS:
+                        val = rec.get(field)
+                        if val is not None:
+                            values[field] = float(val)
+        except Exception:
+            pass  # exiftool failed or timed out
+
+    return values
+
+
+def _trim_float(value: float) -> str:
+    """Format a float, stripping insignificant trailing zeros/decimal point."""
+    value += 0.0  # normalize -0.0 to 0.0
+    text = f"{value:.6f}".rstrip('0').rstrip('.')
+    return text if text else "0"
+
+
+def format_prealign_component(value: "float | None") -> str:
+    """Format one pitch|heading|roll component of the <image prealign=...> attr."""
+    return "0" if value is None else _trim_float(value)
+
+
+def format_lookat(value: "float | None") -> str:
+    """Format the hlookat/vlookat attrs of the <view> tag."""
+    if value is None:
+        return "0.0"
+    text = _trim_float(value)
+    return text if '.' in text else f"{text}.0"
+
+
 # ── Main processing ───────────────────────────────────────────────────────────
 
 def process_image(img_path: str) -> bool:
@@ -339,15 +422,32 @@ def process_image(img_path: str) -> bool:
     # ── Extract GPS coordinates ─────────────────────────────────────────────
     lat, lng, alt = get_gps_coordinates(img_path)
 
+    # ── Extract GPano pose / initial-view values ────────────────────────────
+    gpano = get_gpano_values(img_path)
+    pose_pitch = gpano['PosePitchDegrees']
+    pose_heading = gpano['PoseHeadingDegrees']
+    pose_roll = gpano['PoseRollDegrees']
+    init_heading = gpano['InitialViewHeadingDegrees']
+    init_pitch = gpano['InitialViewPitchDegrees']
+
+    # krpano pitch/roll are inverted relative to GPano; heading is unchanged.
+    prealign = '|'.join((
+        format_prealign_component(-pose_pitch if pose_pitch is not None else None),
+        format_prealign_component(pose_heading),
+        format_prealign_component(-pose_roll if pose_roll is not None else None),
+    ))
+    hlookat = format_lookat(init_heading)
+    vlookat = format_lookat(-init_pitch if init_pitch is not None else None)
+
     # ── XML snippet ─────────────────────────────────────────────────────────
     multires = f"512,{','.join(str(s) for s in level_sizes)}"
     scene_name = f"scene_{stem.lower().replace(' ', '_').replace('-', '_')}"
     print("--- XML snippet (paste into tour.xml) ---", file=sys.stderr)
     print(f'<scene name="{scene_name}" title="{stem}" onstart="" thumburl="panos/{stem}/thumb.jpg" lat="{lat}" lng="{lng}" alt="{alt}" heading="0.0">')
     print(f'\t<control bouncinglimits="calc:image.cube ? true : false" />')
-    print(f'\t<view hlookat="0.0" vlookat="0.0" fovtype="MFOV" fov="120" maxpixelzoom="2.0" fovmin="70" fovmax="140" limitview="auto" />')
+    print(f'\t<view hlookat="{hlookat}" vlookat="{vlookat}" fovtype="MFOV" fov="120" maxpixelzoom="2.0" fovmin="70" fovmax="140" limitview="auto" />')
     print(f'\t<preview url="panos/{stem}/preview.jpg" />')
-    print(f'\t<image>')
+    print(f'\t<image prealign="{prealign}">')
     print(f'\t\t<cube url="panos/{stem}/%s/l%l/%0v/l%l_%s_%0v_%0h.jpg" multires="{multires}" />')
     print(f'\t</image>')
     print(f'</scene>')
