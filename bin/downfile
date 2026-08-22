@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Check if at least one URL was provided
+if [ $# -eq 0 ]; then
+  echo "Usage: $0 <url1> [url2 ...]"
+  exit 1
+fi
+
+# Loop through all provided URLs
+for url in "$@"; do
+  echo "Downloading: $url"
+  aria2c -x 16 -s 16 -c -k 1M "$url"
+done
+
