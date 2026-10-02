@@ -1,0 +1,913 @@
+#!/usr/bin/env python3
+"""
+Chapter Timestamp Converter
+
+Converts chapter timestamps between formats:
+- CSV (HH:MM:SS:FF timecodes, input only)
+- YouTube (.txt)
+- mkvmerge/Matroska XML (.xml)
+- MP4Box (.txt)
+- FFmpeg metadata (.txt)
+
+Any format can be used as input; all four output formats are written
+next to each input file.
+
+Usage:
+    chapconvert [-f FPS] [--from FMT] [--video FILE] FILE [FILE ...]
+
+Examples:
+    chapconvert -f 25 chapters.csv
+    chapconvert -f 23.976 --video input.mp4 chapters.csv
+    chapconvert --video input.mp4 chapters.csv  (framerate read from video)
+    chapconvert chapters.csv  (will prompt for framerate)
+    chapconvert --video input.mp4 a.csv b_mkvmerge.xml
+"""
+
+import argparse
+import csv
+import os
+import re
+import subprocess
+import sys
+from fractions import Fraction
+from xml.etree import ElementTree as ET
+from xml.dom import minidom
+
+
+def normalize_framerate(framerate_input):
+    """
+    Convert framerate input to exact fraction representation.
+
+    Args:
+        framerate_input: Framerate as float
+
+    Returns:
+        tuple: (decimal_framerate, fraction_string)
+    """
+    # Common fractional framerates mapping
+    fractional_fps = {
+        23.976: Fraction(24000, 1001),
+        29.97: Fraction(30000, 1001),
+        59.94: Fraction(60000, 1001),
+    }
+
+    # Check if input matches known fractional rate (with tolerance)
+    for known_fps, fraction in fractional_fps.items():
+        if abs(framerate_input - known_fps) < 0.001:
+            return (float(fraction), f"{fraction.numerator}/{fraction.denominator}")
+
+    # Return as-is for integer or other decimal rates
+    return (framerate_input, str(framerate_input))
+
+
+def prompt_framerate():
+    """
+    Interactively prompt user for framerate.
+
+    Returns:
+        float: Framerate value
+    """
+    while True:
+        try:
+            fps_input = input("Enter framerate (e.g., 23.976, 25, 29.97, 30): ")
+            fps = float(fps_input)
+            if fps <= 0:
+                print("Error: Framerate must be positive")
+                continue
+            return fps
+        except ValueError:
+            print("Error: Invalid number format")
+        except KeyboardInterrupt:
+            print("\nCancelled by user")
+            sys.exit(1)
+
+
+def parse_timecode(timecode_str, framerate):
+    """
+    Parse HH:MM:SS:FF format timecode to total seconds.
+
+    Args:
+        timecode_str: String in format "HH:MM:SS:FF"
+        framerate: Frame rate as float
+
+    Returns:
+        float: Total time in seconds
+
+    Raises:
+        ValueError: If timecode format is invalid
+    """
+    # Pattern: HH:MM:SS:FF
+    pattern = r'^(\d{2}):(\d{2}):(\d{2}):(\d{2})$'
+    match = re.match(pattern, timecode_str)
+
+    if not match:
+        raise ValueError(f"Invalid timecode format: {timecode_str}")
+
+    hours, minutes, seconds, frames = map(int, match.groups())
+
+    # Validate ranges
+    if minutes >= 60 or seconds >= 60:
+        raise ValueError(f"Invalid time values in: {timecode_str}")
+
+    # Calculate total seconds
+    total_seconds = (hours * 3600) + (minutes * 60) + seconds + (frames / framerate)
+
+    return total_seconds
+
+
+def read_chapters_from_csv(csv_path):
+    """
+    Read chapter data from CSV file.
+
+    Args:
+        csv_path: Path to CSV file
+
+    Returns:
+        list: List of dicts with 'timecode', 'title', and 'row_num' keys
+    """
+    chapters = []
+
+    # Handle UTF-8 BOM
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+
+        for row_num, row in enumerate(reader, start=2):  # Start at 2 (after header)
+            try:
+                timecode = row.get('Source In', '').strip()
+                title = row.get('Notes', '').strip()
+
+                # Skip rows with missing data
+                if not timecode or not title:
+                    print(f"Warning: Row {row_num} missing timecode or title, skipping")
+                    continue
+
+                chapters.append({
+                    'timecode': timecode,
+                    'title': title,
+                    'row_num': row_num
+                })
+
+            except Exception as e:
+                print(f"Warning: Error processing row {row_num}: {e}")
+                continue
+
+    return chapters
+
+
+def seconds_to_youtube_format(seconds):
+    """
+    Convert seconds to YouTube format: HH:MM:SS
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        str: Timestamp in HH:MM:SS format
+    """
+    total_seconds = int(seconds)  # Round down to whole seconds
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def seconds_to_nanoseconds_format(seconds):
+    """
+    Convert seconds to mkvmerge format: HH:MM:SS.nnnnnnnnn
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        str: Timestamp in HH:MM:SS.nnnnnnnnn format
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:012.9f}"
+
+
+def seconds_to_mp4box_format(seconds):
+    """
+    Convert seconds to MP4Box format: HH:MM:SS.mmm
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        str: Timestamp in HH:MM:SS.mmm format
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
+def write_youtube_format(chapters, output_path):
+    """
+    Write chapters in YouTube format.
+
+    Args:
+        chapters: List of chapter dicts with 'seconds' and 'title' keys
+        output_path: Output file path
+    """
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for chapter in chapters:
+            timestamp = seconds_to_youtube_format(chapter['seconds'])
+            f.write(f"{timestamp} - {chapter['title']}\n")
+    print(f"Created: {output_path}")
+
+
+def write_mkvmerge_format(chapters, output_path):
+    """
+    Write chapters in mkvmerge XML format.
+
+    Args:
+        chapters: List of chapter dicts with 'seconds' and 'title' keys
+        output_path: Output file path
+    """
+    # Create XML structure
+    root = ET.Element('Chapters')
+    edition = ET.SubElement(root, 'EditionEntry')
+
+    for chapter in chapters:
+        atom = ET.SubElement(edition, 'ChapterAtom')
+
+        # ChapterTimeStart in nanosecond precision
+        time_start = ET.SubElement(atom, 'ChapterTimeStart')
+        time_start.text = seconds_to_nanoseconds_format(chapter['seconds'])
+
+        # ChapterDisplay
+        display = ET.SubElement(atom, 'ChapterDisplay')
+
+        chapter_string = ET.SubElement(display, 'ChapterString')
+        chapter_string.text = chapter['title']  # ET handles escaping
+
+        chapter_lang = ET.SubElement(display, 'ChapterLanguage')
+        chapter_lang.text = 'eng'
+
+    # Pretty print with minidom
+    xml_str = ET.tostring(root, encoding='unicode')
+    dom = minidom.parseString(xml_str)
+    pretty_xml = dom.toprettyxml(indent='  ', encoding='UTF-8')
+
+    # Add DOCTYPE
+    lines = pretty_xml.decode('utf-8').split('\n')
+    lines.insert(1, '<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">')
+    final_xml = '\n'.join(lines)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(final_xml)
+
+    print(f"Created: {output_path}")
+
+
+def write_mp4box_format(chapters, output_path):
+    """
+    Write chapters in MP4Box format.
+
+    Args:
+        chapters: List of chapter dicts with 'seconds' and 'title' keys
+        output_path: Output file path
+    """
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for chapter in chapters:
+            timestamp = seconds_to_mp4box_format(chapter['seconds'])
+            f.write(f"{timestamp} {chapter['title']}\n")
+    print(f"Created: {output_path}")
+
+
+def escape_ffmetadata(value):
+    """
+    Escape a value for the FFmpeg metadata format.
+
+    The characters '=', ';', '#', '\\' and newline must be escaped
+    with a backslash (see FFmpeg doc/metadata.texi).
+
+    Args:
+        value: Raw string
+
+    Returns:
+        str: Escaped string
+    """
+    return re.sub(r'([=;#\\\n])', r'\\\1', value)
+
+
+def write_ffmpeg_format(chapters, output_path, duration=None):
+    """
+    Write chapters in FFmpeg metadata format (;FFMETADATA1).
+
+    Times are written in milliseconds (TIMEBASE=1/1000). Each chapter ends
+    where the next one starts; the last one ends at the video duration, or
+    at its own known end time if the input provided one.
+
+    Args:
+        chapters: List of chapter dicts with 'seconds' and 'title' keys
+        output_path: Output file path
+        duration: Video duration in seconds, or None
+
+    Returns:
+        bool: True if the file was written
+    """
+    starts = [round(chapter['seconds'] * 1000) for chapter in chapters]
+
+    last_end = duration if duration is not None else chapters[-1].get('end')
+    if last_end is None:
+        print(f"Warning: Skipping {output_path}: last chapter end unknown "
+              "(pass --video to generate FFmpeg chapters)")
+        return False
+
+    last_end_ms = round(last_end * 1000)
+    if last_end_ms <= starts[-1]:
+        print(f"Warning: Skipping {output_path}: end time {last_end:.3f}s is not "
+              f"after last chapter start {chapters[-1]['seconds']:.3f}s")
+        return False
+
+    ends = starts[1:] + [last_end_ms]
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(";FFMETADATA1\n")
+        for chapter, start, end in zip(chapters, starts, ends):
+            f.write("[CHAPTER]\n")
+            f.write("TIMEBASE=1/1000\n")
+            f.write(f"START={start}\n")
+            f.write(f"END={end}\n")
+            f.write(f"title={escape_ffmetadata(chapter['title'])}\n")
+    print(f"Created: {output_path}")
+    return True
+
+
+def run_ffprobe(video_path, ffprobe_args):
+    """
+    Run ffprobe and return its "key=value" output as a dict.
+
+    Args:
+        video_path: Path to the media file
+        ffprobe_args: Extra ffprobe arguments (e.g. -show_entries)
+
+    Returns:
+        dict: Reported entries
+
+    Raises:
+        RuntimeError: If ffprobe is missing or fails
+    """
+    cmd = ['ffprobe', '-v', 'error', *ffprobe_args,
+           '-of', 'default=noprint_wrappers=1', video_path]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except FileNotFoundError:
+        raise RuntimeError("ffprobe not found in PATH (install FFmpeg)")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"ffprobe failed on {video_path}: {e.stderr.strip()}")
+
+    entries = {}
+    for line in result.stdout.splitlines():
+        key, _, value = line.partition('=')
+        entries[key.strip()] = value.strip()
+    return entries
+
+
+def get_video_duration(video_path):
+    """
+    Read a video's duration with ffprobe.
+
+    Args:
+        video_path: Path to the media file
+
+    Returns:
+        float: Duration in seconds
+
+    Raises:
+        RuntimeError: If ffprobe is missing or fails
+    """
+    entries = run_ffprobe(video_path, ['-show_entries', 'format=duration'])
+    try:
+        return float(entries['duration'])
+    except (KeyError, ValueError):
+        raise RuntimeError(f"ffprobe returned no duration for {video_path}")
+
+
+def get_video_framerate(video_path):
+    """
+    Read a video's framerate with ffprobe.
+
+    Uses the first video stream (cover art excluded), preferring the
+    nominal r_frame_rate and falling back to avg_frame_rate.
+
+    Args:
+        video_path: Path to the media file
+
+    Returns:
+        float: Framerate, or None if the file has no usable video stream
+
+    Raises:
+        RuntimeError: If ffprobe is missing or fails
+    """
+    entries = run_ffprobe(video_path, ['-select_streams', 'V:0', '-show_entries',
+                                       'stream=r_frame_rate,avg_frame_rate'])
+    for key in ('r_frame_rate', 'avg_frame_rate'):
+        try:
+            fps = Fraction(entries.get(key, ''))
+        except (ValueError, ZeroDivisionError):
+            continue
+        if fps > 0:
+            return float(fps)
+    return None
+
+
+def parse_clock_time(time_str):
+    """
+    Parse [HH:]MM:SS[.fff...] format to total seconds.
+
+    Args:
+        time_str: Time string, e.g. "01:02:03.456", "02:03"
+
+    Returns:
+        float: Total time in seconds
+
+    Raises:
+        ValueError: If time format is invalid
+    """
+    match = re.match(r'^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$', time_str.strip())
+    if not match:
+        raise ValueError(f"Invalid time format: {time_str}")
+
+    hours, minutes, seconds = match.groups()
+    if int(minutes) >= 60 or float(seconds) >= 60:
+        raise ValueError(f"Invalid time values in: {time_str}")
+
+    return int(hours or 0) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def read_csv_chapters(csv_path, framerate):
+    """
+    Read chapters from CSV and convert timecodes to seconds.
+
+    Args:
+        csv_path: Path to CSV file
+        framerate: Frame rate as float
+
+    Returns:
+        list: List of dicts with 'seconds' and 'title' keys
+    """
+    chapters_raw = read_chapters_from_csv(csv_path)
+    if chapters_raw:
+        print(f"Found {len(chapters_raw)} chapters")
+
+    chapters = []
+    for chapter in chapters_raw:
+        try:
+            seconds = parse_timecode(chapter['timecode'], framerate)
+            chapters.append({
+                'title': chapter['title'],
+                'seconds': seconds
+            })
+        except ValueError as e:
+            print(f"Warning: Row {chapter['row_num']}: {e}")
+            continue
+
+    return chapters
+
+
+def read_text_lines(path):
+    """
+    Read a text file's lines, handling UTF-8 BOM.
+
+    Args:
+        path: File path
+
+    Returns:
+        list: Lines without trailing newlines
+    """
+    with open(path, 'r', encoding='utf-8-sig') as f:
+        return f.read().splitlines()
+
+
+def read_youtube_chapters(path):
+    """
+    Read chapters in YouTube format: [HH:]MM:SS - Title
+
+    Args:
+        path: Input file path
+
+    Returns:
+        list: List of dicts with 'seconds' and 'title' keys
+    """
+    chapters = []
+    for line_num, line in enumerate(read_text_lines(path), start=1):
+        if not line.strip():
+            continue
+        match = re.match(r'^\s*((?:\d+:)?\d{1,2}:\d{2})\s+-\s+(.+?)\s*$', line)
+        if not match:
+            print(f"Warning: Line {line_num}: not a YouTube chapter, skipping")
+            continue
+        try:
+            seconds = parse_clock_time(match.group(1))
+        except ValueError as e:
+            print(f"Warning: Line {line_num}: {e}")
+            continue
+        chapters.append({'title': match.group(2), 'seconds': seconds})
+    return chapters
+
+
+def read_mp4box_chapters(path):
+    """
+    Read chapters in MP4Box format: HH:MM:SS.mmm Title
+
+    Args:
+        path: Input file path
+
+    Returns:
+        list: List of dicts with 'seconds' and 'title' keys
+    """
+    chapters = []
+    for line_num, line in enumerate(read_text_lines(path), start=1):
+        if not line.strip():
+            continue
+        match = re.match(r'^\s*(\d+:\d{2}:\d{2}(?:\.\d+)?)\s+(.+?)\s*$', line)
+        if not match:
+            print(f"Warning: Line {line_num}: not an MP4Box chapter, skipping")
+            continue
+        try:
+            seconds = parse_clock_time(match.group(1))
+        except ValueError as e:
+            print(f"Warning: Line {line_num}: {e}")
+            continue
+        chapters.append({'title': match.group(2), 'seconds': seconds})
+    return chapters
+
+
+def read_mkvmerge_chapters(path):
+    """
+    Read chapters in mkvmerge/Matroska XML format.
+
+    Args:
+        path: Input file path
+
+    Returns:
+        list: List of dicts with 'seconds', 'title' and optional 'end' keys
+    """
+    chapters = []
+    root = ET.parse(path).getroot()
+
+    for atom_num, atom in enumerate(root.iter('ChapterAtom'), start=1):
+        start_text = atom.findtext('ChapterTimeStart')
+        title = atom.findtext('ChapterDisplay/ChapterString')
+        if not start_text or not title:
+            print(f"Warning: Chapter {atom_num} missing start time or title, skipping")
+            continue
+        try:
+            chapter = {'title': title.strip(), 'seconds': parse_clock_time(start_text)}
+            end_text = atom.findtext('ChapterTimeEnd')
+            if end_text:
+                chapter['end'] = parse_clock_time(end_text)
+        except ValueError as e:
+            print(f"Warning: Chapter {atom_num}: {e}")
+            continue
+        chapters.append(chapter)
+    return chapters
+
+
+def split_ffmetadata_lines(text):
+    """
+    Split FFmpeg metadata text into logical lines of tokens.
+
+    Each token is a single character or a backslash-escaped pair, so an
+    escaped newline continues the current line.
+
+    Args:
+        text: File contents
+
+    Returns:
+        list: List of token lists
+    """
+    lines = []
+    current = []
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == '\\' and i + 1 < len(text):
+            current.append(text[i:i + 2])
+            i += 2
+            continue
+        if char == '\n':
+            lines.append(current)
+            current = []
+        elif char != '\r':
+            current.append(char)
+        i += 1
+    lines.append(current)
+    return lines
+
+
+def read_ffmpeg_chapters(path):
+    """
+    Read chapters in FFmpeg metadata format (;FFMETADATA1).
+
+    Args:
+        path: Input file path
+
+    Returns:
+        list: List of dicts with 'seconds', 'title' and 'end' keys
+    """
+    with open(path, 'r', encoding='utf-8-sig') as f:
+        text = f.read()
+
+    sections = []  # list of (section_name, {key: value})
+    for tokens in split_ffmetadata_lines(text):
+        if not tokens or tokens[0] in (';', '#'):
+            continue
+        raw = ''.join(tokens).strip()
+        if raw.startswith('[') and raw.endswith(']'):
+            sections.append((raw[1:-1], {}))
+            continue
+        if '=' not in tokens or not sections:
+            continue  # global metadata or malformed line
+        split = tokens.index('=')
+        key = ''.join(t[-1] for t in tokens[:split])
+        value = ''.join(t[-1] for t in tokens[split + 1:])
+        sections[-1][1][key] = value
+
+    chapters = []
+    chapter_num = 0
+    for name, values in sections:
+        if name != 'CHAPTER':
+            continue
+        chapter_num += 1
+        try:
+            num, den = map(int, values.get('TIMEBASE', '1/1000000000').split('/'))
+            timebase = Fraction(num, den)
+            start = float(int(values['START']) * timebase)
+            end = float(int(values['END']) * timebase) if 'END' in values else None
+        except (KeyError, ValueError, ZeroDivisionError) as e:
+            print(f"Warning: Chapter {chapter_num}: invalid timing ({e}), skipping")
+            continue
+
+        title = values.get('title', values.get('TITLE', '')).strip()
+        if not title:
+            print(f"Warning: Chapter {chapter_num} missing title, skipping")
+            continue
+
+        chapter = {'title': title, 'seconds': start}
+        if end is not None:
+            chapter['end'] = end
+        chapters.append(chapter)
+    return chapters
+
+
+FORMATS = ('csv', 'youtube', 'mp4box', 'mkvmerge', 'ffmpeg')
+
+OUTPUT_SUFFIXES = {
+    'youtube': '_youtube.txt',
+    'mkvmerge': '_mkvmerge.xml',
+    'mp4box': '_mp4box.txt',
+    'ffmpeg': '_ffmpeg.txt',
+}
+
+
+def detect_format(path):
+    """
+    Detect the chapter format of an input file.
+
+    Args:
+        path: Input file path
+
+    Returns:
+        str: One of FORMATS, or None if unknown
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == '.csv':
+        return 'csv'
+    if ext == '.xml':
+        return 'mkvmerge'
+
+    for line in read_text_lines(path):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(';FFMETADATA'):
+            return 'ffmpeg'
+        if re.match(r'^\d+:\d{2}:\d{2}\.\d+\s', line):
+            return 'mp4box'
+        if re.match(r'^(?:\d+:)?\d{1,2}:\d{2}\s+-\s', line):
+            return 'youtube'
+        if line.startswith('<?xml') or line.startswith('<Chapters'):
+            return 'mkvmerge'
+        return None
+    return None
+
+
+def output_base_name(input_path):
+    """
+    Derive the output base name, stripping a known format suffix.
+
+    Args:
+        input_path: Input file path
+
+    Returns:
+        str: Base path, e.g. "chapters" for "chapters_youtube.txt"
+    """
+    base_name = os.path.splitext(input_path)[0]
+    return re.sub(r'_(youtube|mp4box|mkvmerge|ffmpeg)$', '', base_name)
+
+
+class ConversionError(Exception):
+    """Raised when a single input file cannot be converted."""
+
+
+def parse_arguments():
+    """
+    Parse command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments
+    """
+    parser = argparse.ArgumentParser(
+        description='Convert chapter timestamps between formats',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Input formats (auto-detected per file, or set with --from):
+  csv, youtube, mp4box, mkvmerge, ffmpeg
+
+Output files (all four, written next to each input; the input itself
+is never overwritten):
+  - <basename>_youtube.txt   : YouTube chapter format
+  - <basename>_mkvmerge.xml  : Matroska/mkvmerge XML format
+  - <basename>_mp4box.txt    : MP4Box chapter format
+  - <basename>_ffmpeg.txt    : FFmpeg metadata format (needs --video for
+                               the last chapter's end, unless the input has it)
+
+Examples:
+  %(prog)s -f 25 chapters.csv
+  %(prog)s -f 23.976 --video input.mp4 chapters.csv
+  %(prog)s --video input.mp4 chapters.csv  (framerate read from video)
+  %(prog)s chapters.csv  (will prompt for framerate)
+  %(prog)s --video input.mp4 a.csv b_mkvmerge.xml
+  %(prog)s --from mp4box notes.txt
+        """
+    )
+    parser.add_argument('-f', '--fps', type=float,
+                       help='Framerate as decimal for CSV input (e.g., 25, 23.976, 29.97); '
+                            'default: read from --video, else prompt')
+    parser.add_argument('--from', dest='input_format', choices=FORMATS,
+                       help='Input format for all files (default: auto-detect per file)')
+    parser.add_argument('--video', metavar='FILE',
+                       help='Video file; ffprobe reads its duration (ends the last FFmpeg chapter) '
+                            'and framerate (for CSV input)')
+    parser.add_argument('input_files', nargs='+', metavar='FILE',
+                       help='Input chapter file(s)')
+    return parser.parse_args()
+
+
+def resolve_framerate(fps, video_path):
+    """
+    Determine the CSV framerate: argument, then --video, then prompt.
+
+    Args:
+        fps: Framerate from -f/--fps, or None
+        video_path: Video file from --video, or None
+
+    Returns:
+        float: Normalized framerate
+
+    Raises:
+        ConversionError: If the framerate is invalid or ffprobe fails
+    """
+    framerate = fps
+    if framerate is None and video_path:
+        try:
+            framerate = get_video_framerate(video_path)
+        except RuntimeError as e:
+            raise ConversionError(str(e))
+        if framerate is None:
+            print(f"Warning: No video stream framerate in {video_path}")
+        else:
+            print(f"Framerate from video: {framerate:.6f} fps")
+    if framerate is None:
+        framerate = prompt_framerate()
+
+    # Validate framerate
+    if framerate <= 0:
+        raise ConversionError("Framerate must be positive")
+
+    # Normalize framerate
+    actual_fps, fps_description = normalize_framerate(framerate)
+    print(f"Using framerate: {fps_description} ({actual_fps:.6f} fps)")
+    return actual_fps
+
+
+def convert_file(input_path, input_format, get_fps, duration):
+    """
+    Convert one chapter file to all output formats.
+
+    Args:
+        input_path: Input chapter file path
+        input_format: One of FORMATS, or None to auto-detect
+        get_fps: Callable returning the CSV framerate (only called for CSV)
+        duration: Video duration in seconds, or None
+
+    Raises:
+        ConversionError: If the file cannot be read or has no chapters
+    """
+    # Validate input file exists
+    if not os.path.isfile(input_path):
+        hint = ''
+        try:
+            float(input_path)
+            hint = f" (to set the framerate use -f/--fps {input_path})"
+        except ValueError:
+            pass
+        raise ConversionError(f"Input file not found: {input_path}{hint}")
+
+    # Determine input format
+    input_format = input_format or detect_format(input_path)
+    if input_format is None:
+        raise ConversionError(f"Could not detect format of {input_path} (use --from)")
+    print(f"Input format: {input_format}")
+
+    # Read chapters
+    print(f"Reading chapters from: {input_path}")
+    if input_format == 'csv':
+        chapters = read_csv_chapters(input_path, get_fps())
+    else:
+        readers = {
+            'youtube': read_youtube_chapters,
+            'mp4box': read_mp4box_chapters,
+            'mkvmerge': read_mkvmerge_chapters,
+            'ffmpeg': read_ffmpeg_chapters,
+        }
+        try:
+            chapters = readers[input_format](input_path)
+        except (ET.ParseError, UnicodeDecodeError) as e:
+            raise ConversionError(f"Could not read {input_path}: {e}")
+
+    if not chapters:
+        raise ConversionError("No valid chapters found")
+
+    chapters.sort(key=lambda chapter: chapter['seconds'])
+    print(f"Successfully parsed {len(chapters)} chapters")
+
+    # Write all output formats, never overwriting the input itself
+    base_name = output_base_name(input_path)
+    print("\nGenerating output files...")
+    writers = {
+        'youtube': write_youtube_format,
+        'mkvmerge': write_mkvmerge_format,
+        'mp4box': write_mp4box_format,
+    }
+    for output_format, suffix in OUTPUT_SUFFIXES.items():
+        output_path = f"{base_name}{suffix}"
+        if os.path.abspath(output_path) == os.path.abspath(input_path):
+            print(f"Skipping {output_path}: same as input")
+            continue
+        if output_format == 'ffmpeg':
+            write_ffmpeg_format(chapters, output_path, duration)
+        else:
+            writers[output_format](chapters, output_path)
+
+
+def main():
+    """Main execution function."""
+    # Parse arguments
+    args = parse_arguments()
+
+    # Get video duration for the last FFmpeg chapter end
+    duration = None
+    if args.video:
+        try:
+            duration = get_video_duration(args.video)
+        except RuntimeError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        print(f"Video duration: {duration:.3f}s")
+
+    if args.fps is not None and args.input_format not in (None, 'csv'):
+        print("Note: Framerate is only used for CSV input, ignoring")
+
+    # Framerate is resolved on first CSV input and reused for the rest
+    fps_cache = []
+
+    def get_fps():
+        if not fps_cache:
+            fps_cache.append(resolve_framerate(args.fps, args.video))
+        return fps_cache[0]
+
+    failed = 0
+    for input_path in args.input_files:
+        if len(args.input_files) > 1:
+            print(f"\n== {input_path}")
+        try:
+            convert_file(input_path, args.input_format, get_fps, duration)
+        except ConversionError as e:
+            print(f"Error: {e}")
+            failed += 1
+
+    if failed:
+        print(f"\n{failed} of {len(args.input_files)} file(s) failed")
+        sys.exit(1)
+
+    print("\nConversion complete!")
+
+
+if __name__ == '__main__':
+    main()
