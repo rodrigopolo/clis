@@ -114,6 +114,8 @@ def set_exif_date(path: Path, date_str: str, offset: str, dry_run: bool) -> bool
         f"-IPTC:DigitalCreationDate={date_part}",
         f"-IPTC:TimeCreated={time_off}",
         f"-IPTC:DigitalCreationTime={time_off}",
+        f"-XMP:MetadataDate={dt_subsec}",
+        f"-XMP:HistoryWhen={dt_subsec}",
         f"-XMP:DateCreated={dt_subsec}",
         "-overwrite_original",
         str(path),
@@ -131,13 +133,13 @@ def set_exif_date(path: Path, date_str: str, offset: str, dry_run: bool) -> bool
 
 
 def rename_file(path: Path, date_str: str, dry_run: bool) -> Path:
-    """Rename to 'YYYY-MM-DD HH.MM.SS IMG_NNN.ext'. Returns new path."""
+    """Rename to 'YYYY-MM-DD HH.MM.SS - IMG_NNN.ext'. Returns new path."""
     m = re.match(r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})", date_str)
     if not m:
         return path
     yr, mo, dy, hh, mi, ss = m.groups()
     suffix  = get_number_suffix(path)
-    new_name = f"{yr}-{mo}-{dy} {hh}.{mi}.{ss} IMG_{suffix}{path.suffix}"
+    new_name = f"{yr}-{mo}-{dy} {hh}.{mi}.{ss} - IMG_{suffix}{path.suffix}"
     new_path = path.parent / new_name
 
     if dry_run:
